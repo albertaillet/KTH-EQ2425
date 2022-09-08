@@ -1,0 +1,7 @@
+name: eq2425-env
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - opencv==4.5.3
+  - ipykernel
