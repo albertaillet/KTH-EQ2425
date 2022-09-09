@@ -28,7 +28,7 @@ def load_imgs(img_folder):
     return imgs
 
 
-def transform_points(points, theta=0, rot_center=(0, 0)):
+def rotate_points(points, theta=0, rot_center=(0, 0)):
     '''
     Function taken online to rotate points around a center.
     :param points: List of Keypoint Objects
@@ -47,10 +47,19 @@ def transform_points(points, theta=0, rot_center=(0, 0)):
         points_copy[idx].pt = (qx, qy)
     return points_copy
 
+# not good, when plotting the points on top of the rescaled image they don't match the location
+def scale_points(points, scale_factor):
+    points_copy = np.copy(points)
+    for idx in range(len(points)):
+        point = points_copy[idx]
+        scaled = tuple(scale_factor * np.array(point.pt))
+        points_copy[idx].pt = (int(scaled[0]), int(scaled[1]))
+    return points_copy
+
 
 def scale_img(img, scale_factor):
     new_dims = tuple(scale_factor * np.array(img.shape[:-1]))
-    resized = cv.resize(img, dsize=(int(new_dims[0]), int(new_dims[1])), interpolation=cv.INTER_AREA)
+    resized = cv.resize(img, dsize=(int(new_dims[0]), int(new_dims[1])), interpolation=cv.INTER_LINEAR)
     return resized
 
 
@@ -102,20 +111,16 @@ def main():
     surf = cv.xfeatures2d.SURF_create(400)
     surf_kp, surf_descr = surf.detectAndCompute(img, None)
 
-    # show_img(img, kp=surf_kp)
-    # show_img(imgs[0])
-
     theta = 45
     rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
 
-    transf_img = rotate_image(img, theta, rot_center=rot_center)
-    transf_points = transform_points(surf_kp, theta, rot_center=rot_center)
-
-    # show_img(transf_img, kp=transf_points)
-    show_img(img)
+    # rot_img = rotate_image(img, theta, rot_center=rot_center)
+    # transf_points = rotate_points(surf_kp, theta, rot_center=rot_center)
 
     scaled_img = scale_img(img, 1.5)
-    show_img(scaled_img)
+    scaled_pts = scale_points(surf_kp, 1.5)
+
+    show_img(scaled_img, kp=scaled_pts)
 
 
 if __name__ == '__main__':
