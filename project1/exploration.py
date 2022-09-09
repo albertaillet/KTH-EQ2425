@@ -10,8 +10,10 @@ img_folder = 'data1'
 
 # %%
 # functions
-def show_img(img, name=''):
-    cv.imshow(name, img)
+def show_img(img, name='', kp=None):
+    'Plots the img, if given adds keypoints'
+    img_kp = cv.drawKeypoints(img, keypoints=kp, outImage=None)
+    cv.imshow(name, img_kp)
     cv.waitKey(0)
     cv.destroyAllWindows()
 
@@ -36,12 +38,25 @@ def repeatability(p0, p1):
     y_diff = np.abs(y0 - y1)
     return (x_diff <= 2) and (y_diff <= 2)
 
+def SIFT(img):
+    pass
 
+def SURF(img):
+    pass
 
 
 
 def main():
     imgs = load_imgs(img_folder)
+    img = imgs[0]
+
+    # create sift detector
+    sift = cv.SIFT_create()
+    kp = sift.detect(img)
+
+    # create surf detector
+    surf = cv.xfeatures2d.SURF_create(400)
+    # print()
     # show_img(imgs[0])
 
 if __name__ == '__main__':
