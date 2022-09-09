@@ -17,7 +17,7 @@ def show_img(img, name='', kp=None):
     cv.namedWindow(name, cv.WINDOW_NORMAL)
     cv.imshow(name, img_kp)
     cv.waitKey(0)
-    cv.destroyAllWindows()
+
 
 
 def load_imgs(img_folder):
@@ -48,6 +48,12 @@ def transform_points(points, theta=0, rot_center=(0, 0)):
     return points_copy
 
 
+def scale_img(img, scale_factor):
+    new_dims = tuple(scale_factor * np.array(img.shape[:-1]))
+    resized = cv.resize(img, dsize=(int(new_dims[0]), int(new_dims[1])), interpolation=cv.INTER_AREA)
+    return resized
+
+
 def rotate_image(img, theta=0, rot_center=(0, 0)):
     '''
     Rotates image around a rotation center.
@@ -59,6 +65,7 @@ def rotate_image(img, theta=0, rot_center=(0, 0)):
     rot_mtx = cv.getRotationMatrix2D(rot_center, theta, 1)
     transf_img = cv.warpAffine(src=img, M=rot_mtx, dsize=img.shape[:-1])
     return transf_img
+
 
 # don't like the name but I'll keep it for now
 def repeatability(p0, p1):
@@ -104,9 +111,11 @@ def main():
     transf_img = rotate_image(img, theta, rot_center=rot_center)
     transf_points = transform_points(surf_kp, theta, rot_center=rot_center)
 
-    show_img(transf_img, kp=transf_points)
+    # show_img(transf_img, kp=transf_points)
+    show_img(img)
 
-
+    scaled_img = scale_img(img, 1.5)
+    show_img(scaled_img)
 
 
 if __name__ == '__main__':
