@@ -3,8 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python==3.7
-#  - opencv==4.5.3
   - ipykernel
-
-
-# manually install opencv-contrib-python==3.4.2.16 using pip
+  - pip
+  - pip:
+      - opencv-contrib-python==3.4.2.16
