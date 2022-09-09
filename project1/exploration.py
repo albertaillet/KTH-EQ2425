@@ -13,6 +13,7 @@ img_folder = 'data1'
 def show_img(img, name='', kp=None):
     'Plots the img, if given adds keypoints'
     img_kp = cv.drawKeypoints(img, keypoints=kp, outImage=None)
+    cv.namedWindow(name, cv.WINDOW_NORMAL)
     cv.imshow(name, img_kp)
     cv.waitKey(0)
     cv.destroyAllWindows()
@@ -23,6 +24,9 @@ def load_imgs(img_folder):
         img_location = f'{img_folder}/{img}'
         imgs.append(cv.imread(img_location))
     return imgs
+
+def transform_points(theta=0):
+    pass
 
 # don't like the name but I'll keep it for now
 def repeatability(p0, p1):
@@ -45,19 +49,22 @@ def SURF(img):
     pass
 
 
-
 def main():
     imgs = load_imgs(img_folder)
     img = imgs[0]
 
     # create sift detector
-    sift = cv.SIFT_create()
-    kp = sift.detect(img)
+    sift = cv.xfeatures2d.SIFT_create()
+    sift_kp = sift.detect(img)
 
     # create surf detector
     surf = cv.xfeatures2d.SURF_create(400)
-    # print()
+    surf_kp, surf_descr = surf.detectAndCompute(img, None)
+
+
+    show_img(img, kp=surf_kp)
     # show_img(imgs[0])
+
 
 if __name__ == '__main__':
     main()
