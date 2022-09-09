@@ -2,6 +2,9 @@ name: eq2425-env
 channels:
   - conda-forge
 dependencies:
-  - python
-  - opencv==4.5.3
+  - python==3.7
   - ipykernel
+  - matplotlib
+  - pip
+  - pip:
+      - opencv-contrib-python==3.4.2.16
