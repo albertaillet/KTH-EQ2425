@@ -59,7 +59,7 @@ def scale_points(points, scale_factor):
 
 def scale_img(img, scale_factor):
     new_dims = tuple(scale_factor * np.array(img.shape[:-1]))
-    resized = cv.resize(img, dsize=(int(new_dims[0]), int(new_dims[1])), interpolation=cv.INTER_LINEAR)
+    resized = cv.resize(img, dsize=(int(new_dims[1]), int(new_dims[0])))
     return resized
 
 
