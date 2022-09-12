@@ -17,7 +17,7 @@ PLAY_FOLDER = 'playground1'
 def save_img(img: ndarray, name: str, kp=None):
     'Saves the image to disk, if given adds keypoints'
     if kp is not None:
-        img = cv.drawKeypoints(img, keypoints=kp, outImage=None)
+        img = cv.drawKeypoints(img, keypoints=kp, outImage=None, color=(0,255,0))
     # save image using cv
     cv.imwrite(f'{PLAY_FOLDER}/{name}.jpg', img)
 
@@ -149,32 +149,24 @@ def main():
     imgs = load_imgs(IMG_FOLDER)
     img = imgs[0]
 
+    edgeT = 10
+    contrastT = 0.165
+
+    featureT = 5000
+
     # create sift detector
-    sift = cv.xfeatures2d.SIFT_create()
+    sift = cv.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT )
     sift_kp = sift.detect(img)
 
     # create surf detector
-    surf = cv.xfeatures2d.SURF_create(400)
-    surf_kp, _ = surf.detectAndCompute(img, None)
+    # surf = cv.xfeatures2d.SURF_create(featureT)
+    # surf_kp, _ = surf.detectAndCompute(img, None)
 
-    theta = 45
-    rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
+    n_pts = len(sift_kp)
+    save_img(img, f'sift_{n_pts}_{edgeT}_{contrastT}', kp=sift_kp)
+    # save_img(img, f'surf_{n_pts}_{featureT}', kp=surf_kp)
 
-    rot_img = rotate_image(img, theta, rot_center=rot_center)
-    transf_points = rotate_points(surf_kp, theta, rot_center=rot_center)
-    transf_points = remove_outside(transf_points, img.shape[:-1])
 
-    # show_img(rot_img, kp=transf_points)
-    transf_surf_kp, _ = surf.detectAndCompute(rot_img, None)
-
-    save_img(rot_img, 'rotated_points.png', kp=transf_points)
-    save_img(rot_img, 'points_from_rotated_image.png', kp=transf_surf_kp)
-
-    print(repeatability_score(transf_points, transf_surf_kp))
-    # scaled_img = scale_img(img, 1.2)
-    # scaled_pts = scale_points(surf_kp, 1.2)
-
-    # show_img(scaled_img, kp=scaled_pts)
 
 
 if __name__ == '__main__':
