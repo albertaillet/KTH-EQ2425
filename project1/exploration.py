@@ -4,20 +4,22 @@ import cv2 as cv
 import os
 import matplotlib.pyplot as plt
 
-# %%
-img1 = cv.imread('data1/obj1_5.jpg')
-img2 = cv.imread('data1/obj1_t1.jpg')
-img_folder = 'data1'
+# For typing
+from numpy import ndarray
+
+IMG_FOLDER = 'data1'
+OUT_FOLDER = 'output1'
+PLAY_FOLDER = 'playground1'
 
 
 # %%
 # functions
-def show_img(img, name='', kp=None):
-    'Plots the img, if given adds keypoints'
-    img_kp = cv.drawKeypoints(img, keypoints=kp, outImage=None)
-    cv.namedWindow(name, cv.WINDOW_NORMAL)
-    cv.imshow(name, img_kp)
-    cv.waitKey(0)
+def save_img(img: ndarray, name: str, kp=None):
+    'Saves the image to disk, if given adds keypoints'
+    if kp is not None:
+        img = cv.drawKeypoints(img, keypoints=kp, outImage=None)
+    # save image using cv
+    cv.imwrite(f'{PLAY_FOLDER}/{name}.jpg', img)
 
 
 
@@ -144,7 +146,7 @@ def SURF(img):
 
 
 def main():
-    imgs = load_imgs(img_folder)
+    imgs = load_imgs(IMG_FOLDER)
     img = imgs[0]
 
     # create sift detector
@@ -153,7 +155,7 @@ def main():
 
     # create surf detector
     surf = cv.xfeatures2d.SURF_create(400)
-    surf_kp, surf_descr = surf.detectAndCompute(img, None)
+    surf_kp, _ = surf.detectAndCompute(img, None)
 
     theta = 45
     rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
@@ -163,7 +165,10 @@ def main():
     transf_points = remove_outside(transf_points, img.shape[:-1])
 
     # show_img(rot_img, kp=transf_points)
-    transf_surf_kp, surf_descr = surf.detectAndCompute(rot_img, None)
+    transf_surf_kp, _ = surf.detectAndCompute(rot_img, None)
+
+    save_img(rot_img, 'rotated_points.png', kp=transf_points)
+    save_img(rot_img, 'points_from_rotated_image.png', kp=transf_surf_kp)
 
     print(repeatability_score(transf_points, transf_surf_kp))
     # scaled_img = scale_img(img, 1.2)
@@ -174,3 +179,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# %%
