@@ -2,6 +2,7 @@
 import numpy as np
 import cv2 as cv
 import os
+import matplotlib.pyplot as plt
 
 # %%
 img1 = cv.imread('data1/obj1_5.jpg')
@@ -77,18 +78,61 @@ def rotate_image(img, theta=0, rot_center=(0, 0)):
 
 
 # don't like the name but I'll keep it for now
-def repeatability(p0, p1):
+def single_repeatability(p0, p1):
     '''
-    Check if the 2 points are in the vicinities. For the repeatability factor
+    Check if the 2 points are in the vicinities. For the repeatability factor.
     :param p0: Point detected in the modified image
-    :param p1: Predicted point in the modified image, given point in original imag
+    :param p1: Predicted point in the modified image, given point in original image.
     :return: bool if the points are close (see 2.1 Introduction)
     '''
-    x0, y0 = p0
-    x1, y1 = p1
+    x0, y0 = p0.pt
+    x1, y1 = p1.pt
     x_diff = np.abs(x0 - x1)
     y_diff = np.abs(y0 - y1)
     return (x_diff <= 2) and (y_diff <= 2)
+
+def repeatability_score(original_kp, new_kp):
+    '''
+    Returns the repeatability measure defined in the course text.
+    :param original_kp: list of kp detected in the original image.Transformation must have already been applied.
+    :param new_kp: list of points detected in the transformed image.
+    :return: repeatability score (defined in project material).
+    '''
+    den = len(original_kp)
+    num = 0
+    for orig_pt in original_kp:
+        for new_pt in new_kp:
+            if single_repeatability(new_pt, orig_pt):
+                num += 1
+                break
+    return num / den
+
+def remove_outside(points, img_dims):
+    '''
+    Keeps all the points in the original image that can still be in the transformed one.
+    Since after a rotation some points might disappear from the picture.
+    :param points: List of all the points found in the original picture and transformed.
+    :param img_dims: dimensions of the transformed picture.
+    :return: list of points that are still inside the transformed picture.
+    '''
+    points = [point for point in points if 0 <= point.pt[0] <= img_dims[0] and 0 <= point.pt[1] <= img_dims[1]]
+    return points
+
+def plot(x, y, x_label, y_label, title):
+    fig = plt.figure(figsize=(15, 15))
+    plt.plot(x, y)
+    plt.xlabel = x_label
+    plt.ylabel = y_label
+    plt.title = title
+    plt.show()
+
+def compute_distances(original_kp, new_kp):
+    n1 = len(original_kp)
+    n2 = len(new_kp)
+    dist_mtx = np.zeros(shape=(n1, n2))
+    for idx_orig in range(len(original_kp)):
+        for idx_new in range(len(new_kp)):
+            idx_orig
 
 
 def SIFT(img):
@@ -114,13 +158,18 @@ def main():
     theta = 45
     rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
 
-    # rot_img = rotate_image(img, theta, rot_center=rot_center)
-    # transf_points = rotate_points(surf_kp, theta, rot_center=rot_center)
+    rot_img = rotate_image(img, theta, rot_center=rot_center)
+    transf_points = rotate_points(surf_kp, theta, rot_center=rot_center)
+    transf_points = remove_outside(transf_points, img.shape[:-1])
 
-    scaled_img = scale_img(img, 1.5)
-    scaled_pts = scale_points(surf_kp, 1.5)
+    # show_img(rot_img, kp=transf_points)
+    transf_surf_kp, surf_descr = surf.detectAndCompute(rot_img, None)
 
-    show_img(scaled_img, kp=scaled_pts)
+    print(repeatability_score(transf_points, transf_surf_kp))
+    # scaled_img = scale_img(img, 1.2)
+    # scaled_pts = scale_points(surf_kp, 1.2)
+
+    # show_img(scaled_img, kp=scaled_pts)
 
 
 if __name__ == '__main__':
