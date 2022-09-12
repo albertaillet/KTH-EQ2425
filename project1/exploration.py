@@ -31,7 +31,7 @@ def load_imgs(img_folder):
     return imgs
 
 
-def rotate_points(points, theta=0, rot_center=(0, 0)):
+def rotate_points(points, dim, theta=0, rot_center=(0, 0)):
     '''
     Function taken online to rotate points around a center.
     :param points: List of Keypoint Objects
@@ -44,10 +44,20 @@ def rotate_points(points, theta=0, rot_center=(0, 0)):
         x, y = points_copy[idx].pt
         ox, oy = rot_center
 
-        qx = ox + np.cos(np.deg2rad(theta)) * (x - ox) + np.sin(np.deg2rad(theta)) * (y - oy)
-        qy = oy + -np.sin(np.deg2rad(theta)) * (x - ox) + np.cos(np.deg2rad(theta)) * (y - oy)
+        abs_sin = np.cos(np.deg2rad(theta))
+        abs_cos = np.sin(np.deg2rad(theta))
+        bound_w = int(dim[0] * abs_sin + dim[1] * abs_cos)
+        bound_h = int(dim[0] * abs_cos + dim[1] * abs_sin)
+
+        # subtract old image center (bringing image back to origo) and adding the new image center coordinates
+        dx = bound_w/2 - rot_center[0]
+        dy = bound_h/2 - rot_center[1]
+
+        qx = ox + abs_cos * (x - ox) + abs_sin * (y - oy) + dx
+        qy = oy + -abs_sin * (x - ox) + abs_cos * (y - oy) + dy
 
         points_copy[idx].pt = (qx, qy)
+
     return points_copy
 
 # not good, when plotting the points on top of the rescaled image they don't match the location
@@ -74,8 +84,21 @@ def rotate_image(img, theta=0, rot_center=(0, 0)):
     :param rot_center: tuple with rotation center
     :return: Image rotated of a specific angle.
     '''
+    height, width = img.shape[:-1]
     rot_mtx = cv.getRotationMatrix2D(rot_center, theta, 1)
-    transf_img = cv.warpAffine(src=img, M=rot_mtx, dsize=img.shape[:-1])
+    # rotation calculates the cos and sin, taking absolutes of those.
+    abs_cos = abs(rot_mtx[0,0]) 
+    abs_sin = abs(rot_mtx[0,1])
+
+    # find the new width and height bounds
+    bound_w = int(height * abs_sin + width * abs_cos)
+    bound_h = int(height * abs_cos + width * abs_sin)
+
+    # subtract old image center (bringing image back to origo) and adding the new image center coordinates
+    rot_mtx[0, 2] += bound_w/2 - rot_center[0]
+    rot_mtx[1, 2] += bound_h/2 - rot_center[1]
+
+    transf_img = cv.warpAffine(src=img, M=rot_mtx, dsize=(bound_w, bound_h))
     return transf_img
 
 
@@ -136,6 +159,28 @@ def compute_distances(original_kp, new_kp):
         for idx_new in range(len(new_kp)):
             idx_orig
 
+def test_rotation(img, theta, detector, sift=True):
+    if sift:
+        orig_kp = detector.detect(img)
+    else:
+        orig_kp, _ = detector.detectAndCompute(img, None)
+
+    rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
+    rotated_points = rotate_points(orig_kp, dim=img.shape[:-1], theta=theta, rot_center=rot_center)
+
+    rotated_img = rotate_image(img, theta=theta, rot_center=rot_center)
+
+    if sift:
+        new_points = detector.detect(rotated_img)
+    else:
+        new_points, _ = detector.detectAndCompute(rotated_img, None)
+
+    rep_score = repeatability_score(rotated_points, new_points)
+
+    save_img(rotated_img, f'points_on_original_img_theta_{theta}_rep_score_{rep_score}', kp=rotated_points)
+    save_img(rotated_img, f'new_points_rotated_img_theta_{theta}_rep_score_{rep_score}', kp=new_points)
+    
+    return rep_score
 
 def SIFT(img):
     pass
@@ -162,8 +207,15 @@ def main():
     # surf = cv.xfeatures2d.SURF_create(featureT)
     # surf_kp, _ = surf.detectAndCompute(img, None)
 
-    n_pts = len(sift_kp)
-    save_img(img, f'sift_{n_pts}_{edgeT}_{contrastT}', kp=sift_kp)
+    rotations = np.arange(0, 361, 15)
+    m = 1.2
+    scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
+
+    rep_score = test_rotation(img, 15, sift, True)
+    print(rep_score)
+
+    # n_pts = len(sift_kp)
+    # save_img(img, f'sift_{n_pts}_{edgeT}_{contrastT}', kp=sift_kp)
     # save_img(img, f'surf_{n_pts}_{featureT}', kp=surf_kp)
 
 
