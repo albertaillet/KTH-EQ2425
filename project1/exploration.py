@@ -64,21 +64,6 @@ def rotate_points(points, dim, theta=0, rot_center=(0, 0)):
 
     return points_copy
 
-# not good, when plotting the points on top of the rescaled image they don't match the location
-def scale_points(points, scale_factor):
-    points_copy = np.copy(points)
-    for idx in range(len(points)):
-        point = points_copy[idx]
-        scaled = tuple(scale_factor * np.array(point.pt))
-        points_copy[idx].pt = (int(scaled[0]), int(scaled[1]))
-    return points_copy
-
-
-def scale_img(img, scale_factor):
-    new_dims = tuple(scale_factor * np.array(img.shape[:-1]))
-    resized = cv.resize(img, dsize=(int(new_dims[1]), int(new_dims[0])))
-    return resized
-
 
 def rotate_image(img, theta=0, rot_center=(0, 0)):
     '''
@@ -106,7 +91,20 @@ def rotate_image(img, theta=0, rot_center=(0, 0)):
     return transf_img
 
 
-# don't like the name but I'll keep it for now
+def scale_points(points, scale_factor):
+    points_copy = np.copy(points)
+    for idx in range(len(points)):
+        point = points_copy[idx]
+        scaled = tuple(scale_factor * np.array(point.pt))
+        points_copy[idx].pt = (int(scaled[0]), int(scaled[1]))
+    return points_copy
+
+
+def scale_image(img, scale_factor):
+    new_dims = tuple(scale_factor * np.array(img.shape[:-1]))
+    resized = cv.resize(img, dsize=(int(new_dims[1]), int(new_dims[0])))
+    return resized
+
 def single_repeatability(p0, p1):
     '''
     Check if the 2 points are in the vicinities. For the repeatability factor.
@@ -119,6 +117,7 @@ def single_repeatability(p0, p1):
     x_diff = np.abs(x0 - x1)
     y_diff = np.abs(y0 - y1)
     return (x_diff <= 2) and (y_diff <= 2)
+
 
 def repeatability_score(original_kp, new_kp):
     '''
@@ -136,16 +135,6 @@ def repeatability_score(original_kp, new_kp):
                 break
     return num / den
 
-def remove_outside(points, img_dims):
-    '''
-    Keeps all the points in the original image that can still be in the transformed one.
-    Since after a rotation some points might disappear from the picture.
-    :param points: List of all the points found in the original picture and transformed.
-    :param img_dims: dimensions of the transformed picture.
-    :return: list of points that are still inside the transformed picture.
-    '''
-    points = [point for point in points if 0 <= point.pt[0] <= img_dims[0] and 0 <= point.pt[1] <= img_dims[1]]
-    return points
 
 def plot(x, y, xlabel, ylabel, title, xlim=None, filename=None):
     plt.plot(x, y, 'x-')
@@ -163,31 +152,21 @@ def plot(x, y, xlabel, ylabel, title, xlim=None, filename=None):
     
     plt.show()
 
-def compute_distances(original_kp, new_kp):
-    n1 = len(original_kp)
-    n2 = len(new_kp)
-    dist_mtx = np.zeros(shape=(n1, n2))
-    for idx_orig in range(len(original_kp)):
-        for idx_new in range(len(new_kp)):
-            idx_orig
 
-def detect_keypoints(img, detector, sift=True):
-    if sift:
-        kp = detector.detect(img)
-    else:
-        kp, _ = detector.detectAndCompute(img, None)
+def detect_keypoints(img, detector):
+    kp, _ = detector.detectAndCompute(img, None)
     return kp 
 
 
-def test_rotation(img, theta, detector, sift=True):
-    orig_kp = detect_keypoints(img, detector=detector, sift=sift)
+def test_rotation(img, theta, detector):
+    orig_kp = detect_keypoints(img, detector=detector)
 
     rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
     rotated_points = rotate_points(orig_kp, dim=img.shape[:-1], theta=theta, rot_center=rot_center)
 
     rotated_img = rotate_image(img, theta=theta, rot_center=rot_center)
 
-    new_points = detect_keypoints(rotated_img, detector=detector, sift=sift)
+    new_points = detect_keypoints(rotated_img, detector=detector)
 
     rep_score = repeatability_score(rotated_points, new_points)
 
@@ -197,14 +176,14 @@ def test_rotation(img, theta, detector, sift=True):
     return rep_score
 
 
-def test_scale(img, scale_f, detector, sift=True):
-    orig_kp = detect_keypoints(img, detector=detector, sift=sift)
+def test_scale(img, scale_f, detector):
+    orig_kp = detect_keypoints(img, detector=detector)
 
     scaled_points = scale_points(orig_kp, scale_f)
 
-    scaled_img = scale_img(img, scale_f)
+    scaled_img = scale_image(img, scale_f)
 
-    new_points = detect_keypoints(scaled_img, detector=detector, sift=sift)
+    new_points = detect_keypoints(scaled_img, detector=detector)
 
     rep_score = repeatability_score(scaled_points, new_points)
 
@@ -239,7 +218,7 @@ scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
 # %%
 rotation_scores_sift = []
 for theta in rotations:
-    score = test_rotation(img, theta, surf, True)
+    score = test_rotation(img, theta, detector=surf)
     rotation_scores_sift.append(score)
     print(f'Rotation: {theta}, score: {score}')
 # %%
@@ -253,11 +232,9 @@ plot(
     f"{OUT_FOLDER}/rotation_graph_sift.png"
 )
 # %%
-
-
 scale_scores_sift = []
 for scale in scale_factors:
-    score = test_scale(img, scale_f=scale, detector=sift, sift=True)
+    score = test_scale(img, scale_f=scale, detector=sift)
     scale_scores_sift.append(score)
     print(f'Scale: {scale}, score: {score}')
 
@@ -270,21 +247,10 @@ plot(
     'Repeatability score for different scale factors using the SIFT algorithm',
     filename=f"{OUT_FOLDER}/scale_graph_sift.png"
 )
-
-# %%
-
-with open(f'{OUT_FOLDER}/scale_scores_sift.pkl','wb') as f:
-    pickle.dump(scale_scores_sift, f)
-
-with open(f'{OUT_FOLDER}/rotation_scores_sift.pkl','wb') as f:
-    pickle.dump(rotation_scores_sift, f)
-
-
-
 # %%
 rotation_scores_surf = []
 for theta in rotations:
-    score = test_rotation(img, theta, surf, False)
+    score = test_rotation(img, theta, detector=surf)
     rotation_scores_surf.append(score)
     print(f'Rotation: {theta}, score: {score}')
 # %%
@@ -298,11 +264,9 @@ plot(
     f"{OUT_FOLDER}/rotation_graph_surf.png"
 )
 # %%
-
-
 scale_scores_surf = []
 for scale in scale_factors:
-    score = test_scale(img, scale_f=scale, detector=surf, sift=False)
+    score = test_scale(img, scale_f=scale, detector=surf)
     scale_scores_surf.append(score)
     print(f'Scale: {scale}, score: {score}')
 
@@ -315,13 +279,105 @@ plot(
     'Repeatability score for different scale factors using the SURF algorithm',
     filename=f"{OUT_FOLDER}/scale_graph_surf.png"
 )
+# %%
+with open(f'{OUT_FOLDER}/scale_scores_sift.pkl','wb') as f:
+    pickle.dump(scale_scores_sift, f)
 
 # %%
-
+with open(f'{OUT_FOLDER}/rotation_scores_sift.pkl','wb') as f:
+    pickle.dump(rotation_scores_sift, f)
+# %%
 with open(f'{OUT_FOLDER}/scale_scores_surf.pkl','wb') as f:
     pickle.dump(scale_scores_surf, f)
 
+# %%
 with open(f'{OUT_FOLDER}/rotation_scores_surf.pkl','wb') as f:
     pickle.dump(rotation_scores_surf, f)
 
+# %%
+sift_kp_obj1_5, sift_desc_obj1_5 = sift.detectAndCompute(imgs[0], None)
+sift_kp_obj1_t5, sift_desc_obj1_t5 = sift.detectAndCompute(imgs[1], None)
+
+# %% FT matching
+bf = cv.BFMatcher()
+matches = bf.knnMatch(
+    sift_desc_obj1_5,
+    sift_desc_obj1_t5,
+    k=1
+)
+FT_threshold = 300
+FT_matches = []
+for (d,) in matches:
+    if d.distance < FT_threshold:
+        FT_matches.append([d])
+
+
+
+
+#%%
+for FT_threshold in [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]:
+    FT_matches = []
+    for (d,) in matches:
+        if d.distance < FT_threshold:
+            FT_matches.append([d])
+    FT_matches_image = cv.drawMatchesKnn(
+        imgs[0],
+        sift_kp_obj1_5,
+        imgs[1],
+        sift_kp_obj1_t5,
+        FT_matches,
+        None,
+        flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+    )
+    plt.figure(figsize=(45,20))
+    plt.imshow(FT_matches_image)
+    plt.savefig(f'{PLAY_FOLDER}/FT_matches_T{FT_threshold}.png')
+    print(f'FT threshold: {FT_threshold}, number of matches: {len(FT_matches)}')
+
+# %% NN matching
+bf = cv.BFMatcher()
+NN_matches = bf.knnMatch(
+    sift_desc_obj1_5,
+    sift_desc_obj1_t5,
+    k=1
+)
+# %%
+NN_matches_image = cv.drawMatchesKnn(
+    imgs[0],
+    sift_kp_obj1_5,
+    imgs[1],
+    sift_kp_obj1_t5,
+    NN_matches,
+    None,
+    flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+)
+plt.figure(figsize=(45,20))
+plt.imshow(NN_matches_image)
+plt.savefig(f'{PLAY_FOLDER}/NN_matches.png')
+
+# %% NNDR matching
+bf = cv.BFMatcher()
+matches = bf.knnMatch(
+    sift_desc_obj1_5,
+    sift_desc_obj1_t5,
+    k=2
+)
+for NNDR_threshold in np.arange(0.1, 1.0, 0.1):
+    NNDR_matches = []
+    for d1, d2 in matches:
+        if d1.distance / d2.distance < NNDR_threshold:
+            NNDR_matches.append([d1])
+
+    NNDR_matches_image = cv.drawMatchesKnn(
+        imgs[0],
+        sift_kp_obj1_5,
+        imgs[1],
+        sift_kp_obj1_t5,
+        NNDR_matches,
+        None,
+        flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+    )
+    plt.figure(figsize=(45,20))
+    plt.imshow(NNDR_matches_image)
+    plt.savefig(f'{PLAY_FOLDER}/NNDR_matches_T{NNDR_threshold}.png')
 # %%
