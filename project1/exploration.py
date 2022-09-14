@@ -3,6 +3,7 @@ import numpy as np
 import cv2 as cv
 import os
 import matplotlib.pyplot as plt
+import pickle
 
 # For typing
 from numpy import ndarray
@@ -146,12 +147,20 @@ def remove_outside(points, img_dims):
     points = [point for point in points if 0 <= point.pt[0] <= img_dims[0] and 0 <= point.pt[1] <= img_dims[1]]
     return points
 
-def plot(x, y, x_label, y_label, title):
-    fig = plt.figure(figsize=(15, 15))
-    plt.plot(x, y)
-    plt.xlabel = x_label
-    plt.ylabel = y_label
-    plt.title = title
+def plot(x, y, xlabel, ylabel, title, xlim=None, filename=None):
+    plt.plot(x, y, 'x-')
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    if xlim:
+        plt.xlim(xlim)
+        plt.xticks(x[::3])
+    plt.ylim(0, 1)
+    plt.grid()
+
+    if filename:
+        plt.savefig(filename)
+    
     plt.show()
 
 def compute_distances(original_kp, new_kp):
@@ -162,21 +171,23 @@ def compute_distances(original_kp, new_kp):
         for idx_new in range(len(new_kp)):
             idx_orig
 
-def test_rotation(img, theta, detector, sift=True):
+def detect_keypoints(img, detector, sift=True):
     if sift:
-        orig_kp = detector.detect(img)
+        kp = detector.detect(img)
     else:
-        orig_kp, _ = detector.detectAndCompute(img, None)
+        kp, _ = detector.detectAndCompute(img, None)
+    return kp 
+
+
+def test_rotation(img, theta, detector, sift=True):
+    orig_kp = detect_keypoints(img, detector=detector, sift=sift)
 
     rot_center = tuple(reversed(np.floor(np.array(img.shape[:-1]) / 2)))
     rotated_points = rotate_points(orig_kp, dim=img.shape[:-1], theta=theta, rot_center=rot_center)
 
     rotated_img = rotate_image(img, theta=theta, rot_center=rot_center)
 
-    if sift:
-        new_points = detector.detect(rotated_img)
-    else:
-        new_points, _ = detector.detectAndCompute(rotated_img, None)
+    new_points = detect_keypoints(rotated_img, detector=detector, sift=sift)
 
     rep_score = repeatability_score(rotated_points, new_points)
 
@@ -184,6 +195,24 @@ def test_rotation(img, theta, detector, sift=True):
     save_img(rotated_img, f'new_points_rotated_img_theta_{theta}_rep_score_{rep_score}', kp=new_points)
     
     return rep_score
+
+
+def test_scale(img, scale_f, detector, sift=True):
+    orig_kp = detect_keypoints(img, detector=detector, sift=sift)
+
+    scaled_points = scale_points(orig_kp, scale_f)
+
+    scaled_img = scale_img(img, scale_f)
+
+    new_points = detect_keypoints(scaled_img, detector=detector, sift=sift)
+
+    rep_score = repeatability_score(scaled_points, new_points)
+
+    save_img(scaled_img, f'points_on_original_img_scale_{scale_f}_rep_score_{rep_score}', kp=scaled_points)
+    save_img(scaled_img, f'new_points_rotated_img_scale_{scale_f}_rep_score_{rep_score}', kp=new_points)
+
+    return rep_score
+
 
 # %%
 
@@ -200,8 +229,8 @@ sift = cv.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contras
 sift_kp = sift.detect(img)
 
 # create surf detector
-# surf = cv.xfeatures2d.SURF_create(featureT)
-# surf_kp, _ = surf.detectAndCompute(img, None)
+surf = cv.xfeatures2d.SURF_create(featureT)
+surf_kp, _ = surf.detectAndCompute(img, None)
 
 rotations = np.arange(0, 361, 15)
 m = 1.2
@@ -210,16 +239,89 @@ scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
 # %%
 rotation_scores_sift = []
 for theta in rotations:
-    score = test_rotation(img, theta, sift, True)
+    score = test_rotation(img, theta, surf, True)
     rotation_scores_sift.append(score)
     print(f'Rotation: {theta}, score: {score}')
 # %%
-plt.plot(rotations, rotation_scores_sift)
-plt.xlabel('Rotation angle')
-plt.ylabel('Repeatability score')
-plt.title('Repeatability score for different rotation angles')
-plt.ylim(0, 1)
-plt.xlim(0, 360)
-plt.grid()
-plt.show()
+plot(
+    rotations, 
+    rotation_scores_sift,
+    'Rotation angle',
+    'Repeatability score',
+    'Repeatability score for different rotation angles using the SIFT algorithm',
+    (0, 360),
+    f"{OUT_FOLDER}/rotation_graph_sift.png"
+)
+# %%
+
+
+scale_scores_sift = []
+for scale in scale_factors:
+    score = test_scale(img, scale_f=scale, detector=sift, sift=True)
+    scale_scores_sift.append(score)
+    print(f'Scale: {scale}, score: {score}')
+
+# %%
+plot(
+    scale_factors, 
+    scale_scores_sift,
+    'Scale factor',
+    'Repeatability score',
+    'Repeatability score for different scale factors using the SIFT algorithm',
+    filename=f"{OUT_FOLDER}/scale_graph_sift.png"
+)
+
+# %%
+
+with open(f'{OUT_FOLDER}/scale_scores_sift.pkl','wb') as f:
+    pickle.dump(scale_scores_sift, f)
+
+with open(f'{OUT_FOLDER}/rotation_scores_sift.pkl','wb') as f:
+    pickle.dump(rotation_scores_sift, f)
+
+
+
+# %%
+rotation_scores_surf = []
+for theta in rotations:
+    score = test_rotation(img, theta, surf, False)
+    rotation_scores_surf.append(score)
+    print(f'Rotation: {theta}, score: {score}')
+# %%
+plot(
+    rotations, 
+    rotation_scores_surf,
+    'Rotation angle',
+    'Repeatability score',
+    'Repeatability score for different rotation angles using the SURF algorithm',
+    (0, 360),
+    f"{OUT_FOLDER}/rotation_graph_surf.png"
+)
+# %%
+
+
+scale_scores_surf = []
+for scale in scale_factors:
+    score = test_scale(img, scale_f=scale, detector=surf, sift=False)
+    scale_scores_surf.append(score)
+    print(f'Scale: {scale}, score: {score}')
+
+# %%
+plot(
+    scale_factors, 
+    scale_scores_surf,
+    'Scale factor',
+    'Repeatability score',
+    'Repeatability score for different scale factors using the SURF algorithm',
+    filename=f"{OUT_FOLDER}/scale_graph_surf.png"
+)
+
+# %%
+
+with open(f'{OUT_FOLDER}/scale_scores_surf.pkl','wb') as f:
+    pickle.dump(scale_scores_surf, f)
+
+with open(f'{OUT_FOLDER}/rotation_scores_surf.pkl','wb') as f:
+    pickle.dump(rotation_scores_surf, f)
+
 # %%
