@@ -22,7 +22,6 @@ def save_img(img: ndarray, name: str, kp=None):
     cv.imwrite(f'{PLAY_FOLDER}/{name}.jpg', img)
 
 
-
 def load_imgs(img_folder):
     imgs = []
     for img in os.listdir(img_folder):
@@ -40,23 +39,27 @@ def rotate_points(points, dim, theta=0, rot_center=(0, 0)):
     :return: List of rotated points
     '''
     points_copy = np.copy(points)
-    for idx in range(len(points)):
-        x, y = points_copy[idx].pt
-        ox, oy = rot_center
 
-        abs_sin = np.cos(np.deg2rad(theta))
-        abs_cos = np.sin(np.deg2rad(theta))
-        bound_w = int(dim[0] * abs_sin + dim[1] * abs_cos)
-        bound_h = int(dim[0] * abs_cos + dim[1] * abs_sin)
+    points_coords = np.array([point.pt for point in points_copy]).T
+    
+    height, width = dim
+    rot_mtx = cv.getRotationMatrix2D(rot_center, theta, 1)
+    # rotation calculates the cos and sin, taking absolutes of those.
+    abs_cos = abs(rot_mtx[0,0]) 
+    abs_sin = abs(rot_mtx[0,1])
 
-        # subtract old image center (bringing image back to origo) and adding the new image center coordinates
-        dx = bound_w/2 - rot_center[0]
-        dy = bound_h/2 - rot_center[1]
+    # find the new width and height bounds
+    bound_w = int(height * abs_sin + width * abs_cos)
+    bound_h = int(height * abs_cos + width * abs_sin)
 
-        qx = ox + abs_cos * (x - ox) + abs_sin * (y - oy) + dx
-        qy = oy + -abs_sin * (x - ox) + abs_cos * (y - oy) + dy
+    # subtract old image center (bringing image back to origo) and adding the new image center coordinates
+    rot_mtx[0, 2] += bound_w/2 - rot_center[0]
+    rot_mtx[1, 2] += bound_h/2 - rot_center[1]
+    
+    rot_points_coords = np.matmul(rot_mtx, np.vstack((points_coords, np.ones(points_coords.shape[1]))))
 
-        points_copy[idx].pt = (qx, qy)
+    for point, (x, y) in zip(points_copy, rot_points_coords.T):
+        point.pt = (x, y)
 
     return points_copy
 
@@ -182,46 +185,41 @@ def test_rotation(img, theta, detector, sift=True):
     
     return rep_score
 
-def SIFT(img):
-    pass
+# %%
 
+imgs = load_imgs(IMG_FOLDER)
+img = imgs[0]
 
-def SURF(img):
-    pass
+edgeT = 10
+contrastT = 0.165
 
+featureT = 5000
 
-def main():
-    imgs = load_imgs(IMG_FOLDER)
-    img = imgs[0]
+# create sift detector
+sift = cv.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT )
+sift_kp = sift.detect(img)
 
-    edgeT = 10
-    contrastT = 0.165
+# create surf detector
+# surf = cv.xfeatures2d.SURF_create(featureT)
+# surf_kp, _ = surf.detectAndCompute(img, None)
 
-    featureT = 5000
+rotations = np.arange(0, 361, 15)
+m = 1.2
+scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
 
-    # create sift detector
-    sift = cv.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT )
-    sift_kp = sift.detect(img)
-
-    # create surf detector
-    # surf = cv.xfeatures2d.SURF_create(featureT)
-    # surf_kp, _ = surf.detectAndCompute(img, None)
-
-    rotations = np.arange(0, 361, 15)
-    m = 1.2
-    scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
-
-    rep_score = test_rotation(img, 15, sift, True)
-    print(rep_score)
-
-    # n_pts = len(sift_kp)
-    # save_img(img, f'sift_{n_pts}_{edgeT}_{contrastT}', kp=sift_kp)
-    # save_img(img, f'surf_{n_pts}_{featureT}', kp=surf_kp)
-
-
-
-
-if __name__ == '__main__':
-    main()
-
+# %%
+rotation_scores_sift = []
+for theta in rotations:
+    score = test_rotation(img, theta, sift, True)
+    rotation_scores_sift.append(score)
+    print(f'Rotation: {theta}, score: {score}')
+# %%
+plt.plot(rotations, rotation_scores_sift)
+plt.xlabel('Rotation angle')
+plt.ylabel('Repeatability score')
+plt.title('Repeatability score for different rotation angles')
+plt.ylim(0, 1)
+plt.xlim(0, 360)
+plt.grid()
+plt.show()
 # %%
