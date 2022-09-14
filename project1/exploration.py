@@ -18,7 +18,9 @@ PLAY_FOLDER = 'playground1'
 def save_img(img: ndarray, name: str, kp=None):
     'Saves the image to disk, if given adds keypoints'
     if kp is not None:
-        img = cv.drawKeypoints(img, keypoints=kp, outImage=None, color=(0,255,0))
+        colors=[(0,255,0), (255,0,0)]
+        for idx, k in enumerate(kp):
+            img = cv.drawKeypoints(img, keypoints=k, outImage=None, color=colors[idx])
     # save image using cv
     cv.imwrite(f'{PLAY_FOLDER}/{name}.jpg', img)
 
@@ -79,7 +81,6 @@ def scale_img(img, scale_factor):
     resized = cv.resize(img, dsize=(int(new_dims[1]), int(new_dims[0])))
     return resized
 
-
 def rotate_image(img, theta=0, rot_center=(0, 0)):
     '''
     Rotates image around a rotation center.
@@ -104,7 +105,6 @@ def rotate_image(img, theta=0, rot_center=(0, 0)):
 
     transf_img = cv.warpAffine(src=img, M=rot_mtx, dsize=(bound_w, bound_h))
     return transf_img
-
 
 # don't like the name but I'll keep it for now
 def single_repeatability(p0, p1):
@@ -173,11 +173,10 @@ def compute_distances(original_kp, new_kp):
 
 def detect_keypoints(img, detector, sift=True):
     if sift:
-        kp = detector.detect(img)
+        kp, _ = detector.detectAndCompute(img, None)
     else:
         kp, _ = detector.detectAndCompute(img, None)
     return kp 
-
 
 def test_rotation(img, theta, detector, sift=True):
     orig_kp = detect_keypoints(img, detector=detector, sift=sift)
@@ -191,11 +190,10 @@ def test_rotation(img, theta, detector, sift=True):
 
     rep_score = repeatability_score(rotated_points, new_points)
 
-    save_img(rotated_img, f'points_on_original_img_theta_{theta}_rep_score_{rep_score}', kp=rotated_points)
-    save_img(rotated_img, f'new_points_rotated_img_theta_{theta}_rep_score_{rep_score}', kp=new_points)
+    save_img(rotated_img, f'points_on_original_img_theta_{theta}_rep_score_{rep_score}', kp=[rotated_points])
+    save_img(rotated_img, f'new_points_rotated_img_theta_{theta}_rep_score_{rep_score}', kp=[new_points])
     
     return rep_score
-
 
 def test_scale(img, scale_f, detector, sift=True):
     orig_kp = detect_keypoints(img, detector=detector, sift=sift)
@@ -208,8 +206,8 @@ def test_scale(img, scale_f, detector, sift=True):
 
     rep_score = repeatability_score(scaled_points, new_points)
 
-    save_img(scaled_img, f'points_on_original_img_scale_{scale_f}_rep_score_{rep_score}', kp=scaled_points)
-    save_img(scaled_img, f'new_points_rotated_img_scale_{scale_f}_rep_score_{rep_score}', kp=new_points)
+    save_img(scaled_img, f'points_on_original_img_scale_{scale_f}_rep_score_{rep_score}', kp=[scaled_points])
+    save_img(scaled_img, f'new_points_rotated_img_scale_{scale_f}_rep_score_{rep_score}', kp=[new_points])
 
     return rep_score
 
@@ -325,3 +323,5 @@ with open(f'{OUT_FOLDER}/rotation_scores_surf.pkl','wb') as f:
     pickle.dump(rotation_scores_surf, f)
 
 # %%
+
+save_img(img, 'trial', [surf_kp, sift_kp])
