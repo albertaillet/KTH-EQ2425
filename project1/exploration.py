@@ -227,7 +227,7 @@ scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
 # %%
 rotation_scores_sift = []
 for theta in rotations:
-    score = test_rotation(img, theta, detector=surf)
+    score = test_rotation(img, theta, detector=sift)
     rotation_scores_sift.append(score)
     print(f'Rotation: {theta}, score: {score}')
 # %%
@@ -307,7 +307,7 @@ with open(f'{OUT_FOLDER}/rotation_scores_surf.pkl','wb') as f:
 sift_kp_obj1_5, sift_desc_obj1_5 = sift.detectAndCompute(imgs[0], None)
 sift_kp_obj1_t5, sift_desc_obj1_t5 = sift.detectAndCompute(imgs[1], None)
 
-# %% FT matching
+# %% Fixed Threshold matching
 bf = cv.BFMatcher()
 matches = bf.knnMatch(
     sift_desc_obj1_5,
@@ -320,11 +320,9 @@ for (d,) in matches:
     if d.distance < FT_threshold:
         FT_matches.append([d])
 
-
-
-
 #%%
-for FT_threshold in [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]:
+# in_bet = [x for x in np.arange(150, 201, 10)]
+for FT_threshold in [160, 200]:
     FT_matches = []
     for (d,) in matches:
         if d.distance < FT_threshold:
@@ -338,9 +336,12 @@ for FT_threshold in [50, 100, 150, 200, 250, 300, 350, 400, 450, 500]:
         None,
         flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
     )
-    plt.figure(figsize=(45,20))
+    # plt.figure(figsize=(30,20))
     plt.imshow(FT_matches_image)
-    plt.savefig(f'{PLAY_FOLDER}/FT_matches_T{FT_threshold}.png')
+    plt.title(f'Feature matching using a Fixed Threshold of {FT_threshold}')
+    plt.axis('off')
+    plt.savefig(f'{PLAY_FOLDER}/FT_matches_T{FT_threshold}.png', dpi=400,bbox_inches='tight')
+    plt.close()
     print(f'FT threshold: {FT_threshold}, number of matches: {len(FT_matches)}')
 
 # %% NN matching
@@ -362,7 +363,11 @@ NN_matches_image = cv.drawMatchesKnn(
 )
 plt.figure(figsize=(45,20))
 plt.imshow(NN_matches_image)
-plt.savefig(f'{PLAY_FOLDER}/NN_matches.png')
+plt.axis('off')
+plt.title(f'Feature matching using Nearest Neighbor')
+plt.savefig(f'{PLAY_FOLDER}/NN_matches.png', dpi=400,bbox_inches='tight')
+plt.close()
+
 
 # %% NNDR matching
 bf = cv.BFMatcher()
@@ -371,7 +376,7 @@ matches = bf.knnMatch(
     sift_desc_obj1_t5,
     k=2
 )
-for NNDR_threshold in np.arange(0.1, 1.0, 0.1):
+for NNDR_threshold in [0.7]:
     NNDR_matches = []
     for d1, d2 in matches:
         if d1.distance / d2.distance < NNDR_threshold:
@@ -388,5 +393,9 @@ for NNDR_threshold in np.arange(0.1, 1.0, 0.1):
     )
     plt.figure(figsize=(45,20))
     plt.imshow(NNDR_matches_image)
-    plt.savefig(f'{PLAY_FOLDER}/NNDR_matches_T{NNDR_threshold}.png')
+    plt.axis('off')
+    plt.title(f'Feature matching using Nearest Neighbor Distance Ratio of {NNDR_threshold}')
+    plt.savefig(f'{PLAY_FOLDER}/NNDR_matches_T{NNDR_threshold}.png', dpi=400,bbox_inches='tight')
+    plt.close()
+
 # %%
