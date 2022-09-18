@@ -1,29 +1,29 @@
-# %%
-import numpy as np
-import cv2 as cv
+# %% Imports and global variables
 import os
-import matplotlib.pyplot as plt
+import cv2
 import pickle
+import numpy as np
+import matplotlib.pyplot as plt
 
 # For typing
 from numpy import ndarray
 from typing import Union
-detector_type = Union[cv.xfeatures2d_SIFT, cv.xfeatures2d_SURF]
+detector_type = Union[cv2.xfeatures2d_SIFT, cv2.xfeatures2d_SURF]
 
-IMG_FOLDER = 'data1'
+DATA_FOLDER = 'data1'
 OUT_FOLDER = 'output1'
 PLAY_FOLDER = 'playground1'
 
 
 # %% Functions
-def save_img(img: ndarray, name: str, kp=None):
+def save_img(img: ndarray, name: str, kp: list=None, folder: str=PLAY_FOLDER):
     'Saves the image to disk, if given adds keypoints'
     if kp is not None:
         colors=[(0,255,0), (255,0,0)]
         for idx, k in enumerate(kp):
-            img = cv.drawKeypoints(img, keypoints=k, outImage=None, color=colors[idx])
+            img = cv2.drawKeypoints(img, keypoints=k, outImage=None, color=colors[idx])
     # save image using cv
-    cv.imwrite(f'{PLAY_FOLDER}/{name}.jpg', img)
+    cv2.imwrite(f'{folder}/{name}.jpg', img)
 
 
 def load_imgs(img_folder: str) -> dict:
@@ -31,7 +31,7 @@ def load_imgs(img_folder: str) -> dict:
     imgs = {}
     for img in os.listdir(img_folder):
         img_location = f'{img_folder}/{img}'
-        imgs[img] = cv.imread(img_location)
+        imgs[img] = cv2.imread(img_location)
     return imgs
 
 
@@ -53,7 +53,7 @@ def rotate_points(
     points_coords = np.array([point.pt for point in points_copy]).T
     
     height, width = dim
-    rot_mtx = cv.getRotationMatrix2D(rot_center, theta, 1)
+    rot_mtx = cv2.getRotationMatrix2D(rot_center, theta, 1)
     abs_cos = abs(rot_mtx[0,0]) 
     abs_sin = abs(rot_mtx[0,1])
 
@@ -84,7 +84,7 @@ def rotate_image(
     :return: Image rotated of a specific angle.
     '''
     height, width = img.shape[:-1]
-    rot_mtx = cv.getRotationMatrix2D(rot_center, theta, 1)
+    rot_mtx = cv2.getRotationMatrix2D(rot_center, theta, 1)
     abs_cos = abs(rot_mtx[0,0]) 
     abs_sin = abs(rot_mtx[0,1])
 
@@ -94,7 +94,7 @@ def rotate_image(
     rot_mtx[0, 2] += bound_w/2 - rot_center[0]
     rot_mtx[1, 2] += bound_h/2 - rot_center[1]
 
-    transf_img = cv.warpAffine(src=img, M=rot_mtx, dsize=(bound_w, bound_h))
+    transf_img = cv2.warpAffine(src=img, M=rot_mtx, dsize=(bound_w, bound_h))
     return transf_img
 
 
@@ -109,7 +109,7 @@ def scale_points(points: list, scale_factor: float) -> list:
 
 def scale_image(img: ndarray, scale_factor: float) -> ndarray:
     new_dims = tuple(scale_factor * np.array(img.shape[:-1]))
-    resized = cv.resize(img, dsize=(int(new_dims[1]), int(new_dims[0])))
+    resized = cv2.resize(img, dsize=(int(new_dims[1]), int(new_dims[0])))
     return resized
 
 def single_repeatability(p0, p1) -> bool:
@@ -242,21 +242,21 @@ def test_illumination(img: ndarray, illumination_f: float, detector: detector_ty
 
 # %% File loading and detector initialization
 # Load images
-imgs = load_imgs(IMG_FOLDER)
+imgs = load_imgs(DATA_FOLDER)
 obj1_5, obj1_t1 = imgs['obj1_5.JPG'], imgs['obj1_t1.JPG']
 
 
 # Create sift detector
 edgeT = 10
 contrastT = 0.165
-sift = cv.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
+sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
 
 # Create surf detector
 featureT = 5000
-surf = cv.xfeatures2d.SURF_create(featureT)
+surf = cv2.xfeatures2d.SURF_create(featureT)
 
 # Create matcher 
-bf = cv.BFMatcher()
+bf = cv2.BFMatcher()
 
 # Set the parameters for the tests
 rotations = np.arange(0, 361, 15)
@@ -377,11 +377,11 @@ with open(f'{OUT_FOLDER}/illumination_scores_surf.pkl','wb') as f:
 
 # %% Function to draw matches
 def draw_matches(img1, kp1, img2, kp2, matches, title='', filename=None):
-    img1 = cv.cvtColor(img1, cv.COLOR_BGR2RGB)
-    img2 = cv.cvtColor(img2, cv.COLOR_BGR2RGB)
-    matches_image = cv.drawMatchesKnn(
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
+    matches_image = cv2.drawMatchesKnn(
         img1, kp1, img2, kp2, matches, None,
-        flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS,
+        flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS,
         #matchColor=(0, 255, 0)
     )
     if filename:
@@ -467,5 +467,5 @@ for NNDR_threshold in [0.7, 0.75, 0.8, 0.85, 0.9]:
         f'Feature matching of SURF descriptors using Nearest Neighbor Distance Ratio with a threshold of {NNDR_threshold}',
         f'SURF_NNDR_matches_T{NNDR_threshold}'
     )
-    print(len(NNDR_matches))
+    print(NNDR_threshold, len(NNDR_matches))
 # %%
