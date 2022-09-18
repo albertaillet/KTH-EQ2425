@@ -126,7 +126,7 @@ def single_repeatability(p0, p1) -> bool:
     return (x_diff <= 2) and (y_diff <= 2)
 
 
-def repeatability_score(original_kp, new_kp) -> float:
+def repeatability_score(original_kp: list, new_kp: list) -> float:
     '''
     Returns the repeatability measure defined in the course text.
     :param original_kp: list of kp detected in the original image.Transformation must have already been applied.
@@ -455,8 +455,8 @@ surf_matches = bf.knnMatch(
     k=2
 )
 
-# %% Nearest Neighbor Distance Ratio matching using the SURF matchese
-for NNDR_threshold in [0.7, 0.75, 0.8, 0.85, 0.9]:
+# %% Nearest Neighbor Distance Ratio matching using the SURF matches
+for NNDR_threshold in [0.75, 0.8]:
     NNDR_matches = [[d1] for d1, d2 in surf_matches if d1.distance / d2.distance < NNDR_threshold]
     draw_matches(
         obj1_5,
@@ -467,5 +467,4 @@ for NNDR_threshold in [0.7, 0.75, 0.8, 0.85, 0.9]:
         f'Feature matching of SURF descriptors using Nearest Neighbor Distance Ratio with a threshold of {NNDR_threshold}',
         f'SURF_NNDR_matches_T{NNDR_threshold}'
     )
-    print(NNDR_threshold, len(NNDR_matches))
 # %%
