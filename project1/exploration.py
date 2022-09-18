@@ -456,15 +456,16 @@ surf_matches = bf.knnMatch(
 )
 
 # %% Nearest Neighbor Distance Ratio matching using the SURF matchese
-for NNDR_threshold in [0.7, 0.8, 0.9]:
+for NNDR_threshold in [0.7, 0.75, 0.8, 0.85, 0.9]:
     NNDR_matches = [[d1] for d1, d2 in surf_matches if d1.distance / d2.distance < NNDR_threshold]
     draw_matches(
         obj1_5,
-        sift_kp_obj1_5,
+        surf_kp_obj1_5,
         obj1_t1,
-        sift_kp_obj1_t1,
+        surf_kp_obj1_t1,
         NNDR_matches,
         f'Feature matching of SURF descriptors using Nearest Neighbor Distance Ratio with a threshold of {NNDR_threshold}',
         f'SURF_NNDR_matches_T{NNDR_threshold}'
     )
+    print(len(NNDR_matches))
 # %%
