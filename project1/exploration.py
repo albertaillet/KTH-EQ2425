@@ -237,7 +237,7 @@ surf_kp, _ = surf.detectAndCompute(img, None)
 rotations = np.arange(0, 361, 15)
 m = 1.2
 scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
-illumination_factors = np.arange(0.5, 1.5, 0.1)
+illumination_factors = np.arange(0.5, 2, 0.1)
 
 # %%
 rotation_scores_sift = []
