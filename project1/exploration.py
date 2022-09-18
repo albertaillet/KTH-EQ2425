@@ -347,6 +347,14 @@ with open(f'{OUT_FOLDER}/rotation_scores_surf.pkl','wb') as f:
     pickle.dump(rotation_scores_surf, f)
 
 # %%
+with open(f'{OUT_FOLDER}/illumination_scores_sift.pkl','wb') as f:
+    pickle.dump(illumination_scores_sift, f)
+
+# %%
+with open(f'{OUT_FOLDER}/illumination_scores_surf.pkl','wb') as f:
+    pickle.dump(illumination_scores_surf, f)
+
+# %%
 sift_kp_obj1_5, sift_desc_obj1_5 = sift.detectAndCompute(imgs[0], None)
 sift_kp_obj1_t5, sift_desc_obj1_t5 = sift.detectAndCompute(imgs[1], None)
 
