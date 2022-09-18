@@ -197,13 +197,27 @@ def test_scale(img, scale_f, detector):
     rep_score = repeatability_score(scaled_points, new_points)
 
     save_img(scaled_img, f'points_on_original_img_scale_{scale_f}_rep_score_{rep_score}', kp=[scaled_points])
-    save_img(scaled_img, f'new_points_rotated_img_scale_{scale_f}_rep_score_{rep_score}', kp=[new_points])
+    save_img(scaled_img, f'new_points_scaled_img_scale_{scale_f}_rep_score_{rep_score}', kp=[new_points])
 
     return rep_score
 
 
-# %%
+def test_illumination(img, illumination_factor, detector):
+    orig_kp = detect_keypoints(img, detector=detector)
 
+    dimmed_image = np.clip(img * illumination_factor, 0, 255).astype(np.uint8)
+
+    new_points = detect_keypoints(dimmed_image, detector=detector)
+
+    rep_score = repeatability_score(orig_kp, new_points)
+
+    save_img(img, f'points_on_original_img_illum_{illumination_factor}_rep_score_{rep_score}', kp=[orig_kp])
+    save_img(dimmed_image, f'new_points_illum_img_illum_{illumination_factor}_rep_score_{rep_score}', kp=[new_points])
+    
+    return rep_score
+
+
+# %%
 imgs = load_imgs(IMG_FOLDER)
 img = imgs[0]
 
@@ -223,6 +237,7 @@ surf_kp, _ = surf.detectAndCompute(img, None)
 rotations = np.arange(0, 361, 15)
 m = 1.2
 scale_factors = [np.power(m, exp) for exp in np.arange(0, 9)]
+illumination_factors = np.arange(0.5, 1.5, 0.1)
 
 # %%
 rotation_scores_sift = []
@@ -246,7 +261,6 @@ for scale in scale_factors:
     score = test_scale(img, scale_f=scale, detector=sift)
     scale_scores_sift.append(score)
     print(f'Scale: {scale}, score: {score}')
-
 # %%
 plot(
     scale_factors, 
@@ -278,7 +292,6 @@ for scale in scale_factors:
     score = test_scale(img, scale_f=scale, detector=surf)
     scale_scores_surf.append(score)
     print(f'Scale: {scale}, score: {score}')
-
 # %%
 plot(
     scale_factors, 
@@ -287,6 +300,36 @@ plot(
     'Repeatability score',
     'Repeatability score for different scale factors using the SURF algorithm',
     filename=f"{OUT_FOLDER}/scale_graph_surf.png"
+)
+# %%
+illumination_scores_sift = []
+for illumination_factor in illumination_factors:
+    score = test_illumination(img, illumination_factor, detector=sift)
+    illumination_scores_sift.append(score)
+    print(f'Illumination factor: {illumination_factor}, score: {score}')
+# %%
+plot(
+    illumination_factors, 
+    illumination_scores_sift,
+    'Illumination factor',
+    'Repeatability score',
+    'Repeatability score for different illumination factors using the SIFT algorithm',
+    filename=f"{OUT_FOLDER}/illumination_graph_sift.png"
+)
+# %%
+illumination_scores_surf = []
+for illumination_factor in illumination_factors:
+    score = test_illumination(img, illumination_factor, detector=surf)
+    illumination_scores_surf.append(score)
+    print(f'Illumination factor: {illumination_factor}, score: {score}')
+# %%
+plot(
+    illumination_factors, 
+    illumination_scores_surf,
+    'Illumination factor',
+    'Repeatability score',
+    'Repeatability score for different illumination factors using the SURF algorithm',
+    filename=f"{OUT_FOLDER}/illumination_graph_surf.png"
 )
 # %%
 with open(f'{OUT_FOLDER}/scale_scores_sift.pkl','wb') as f:
