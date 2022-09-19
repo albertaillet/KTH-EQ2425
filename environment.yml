@@ -9,3 +9,4 @@ dependencies:
   - pip
   - pip:
       - opencv-contrib-python==3.4.2.16
+      - tqdm
