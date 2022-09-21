@@ -4,12 +4,9 @@ from random import random
 import cv2 
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.cluster.hierarchy as shc
 from sklearn.cluster import KMeans
 from tqdm import tqdm
 import re
-
-
 
 # for typing
 from numpy import ndarray
@@ -65,25 +62,12 @@ def plot(x, y, xlabel, ylabel, title, xlim=None, filename=None):
 def detect_keypoints(img: ndarray, detector: detector_type) -> list:
     return detector.detect(img, None)
 
-def hi_kmeans(data: list, b: int, depth: int):
-    '''
-    Builds a hierarchical tree using the given keypoints.
-    :param b: number of cluster for each iteration Tree building algorithm.
-    :param depth: number of iterations to build the Tree.
-    expl: https://github.com/epignatelli/scalable-recognition-with-a-vocabulary-tree/blob/master/_test_Scalable%20Recognition%20with%20a%20Vocabulary%20Tree%20copy.ipynb
-    '''
-
-    Kmeans = KMeans(n_clusters=b, random_state=0)
-    tree_struc = {}
-    for t in range(depth):
-        new_labels = KMeans.fit_predict(X=data)
-
 def get_descr_list(server_desc_dict):
     l = list()
     for key in server_desc_dict.keys():
         for desc in server_desc_dict[key]:
             l.append(desc)
-    return l
+    return np.array(l)
 
 # %% Data loading
 
@@ -97,7 +81,7 @@ server_imgs = imgs['server']
 # Create SIFT detector
 # have to choose the parameters!
 edgeT = 10
-contrastT = 0.125
+contrastT = 0.15
 sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
 
 client_kp = {}
@@ -105,15 +89,14 @@ client_desc = {}
 server_kp = {}
 server_desc = {}
 # %%
-# detect keypoints in client images 
+# client images
 for img_name in tqdm(client_imgs.keys()):
     obj_number = get_obj_number(img_name)
     kp, desc = sift.detectAndCompute(client_imgs[img_name], None)
     client_kp[obj_number] = kp
     client_desc[obj_number] = desc
 
-# %%
-# store keypoints and descriptors in a dictionary based on object number
+# server images
 for img_name in tqdm(server_imgs.keys()):
     obj_number = get_obj_number(img_name)
     if obj_number not in server_kp.keys():
@@ -136,4 +119,50 @@ for obj in client_kp.keys():
 print(f'The average number of features is:\nserver images: {int(avg_features_server / 50)}\nclient images: {int(avg_features_client / 50)}')
 
 # %%
+
+def hi_kmeans(data: list, b: int, depth: int, current_depth: int = 0):
+    # probably must use recursive programming for efficient implementation, and a class
+    '''
+    Builds a hierarchical tree using the given keypoints.
+    :param b: number of cluster for each iteration Tree building algorithm.
+    :param depth: number of iterations to build the Tree.
+    https://github.com/epignatelli/scalable-recognition-with-a-vocabulary-tree/blob/master/_test_Scalable%20Recognition%20with%20a%20Vocabulary%20Tree%20copy.ipynb
+    https://github.com/Pranshu258/svtor
+    '''
+    # creates tree dictionary {centroid_label:{subtree}}
+    tree_dict = {i: {} for i in range(b)}
+
+    if len(data) < b or depth == current_depth:
+        return None
+
+    KM = KMeans(n_clusters=b, random_state=0)
+    KM.fit(X=data)
+    centroids = KM.cluster_centers_
+    labels = KM.labels_
+
+    print(f'The number of centroids is {len(centroids)} ')
+
+    for centroid_number, centroid in enumerate(centroids):
+        tree_dict[centroid_number]['centroid'] = centroid
+        selected_pts = data[np.where(labels == centroid_number)[0]]
+        print(f'The number of selected points is {len(selected_pts)}')
+        tree_dict[centroid_number]['subtree'] = hi_kmeans(selected_pts, b=b, depth=depth, current_depth=current_depth + 1)
+    return tree_dict
+    
+
+
 server_desc_list = get_descr_list(server_desc)
+tree = hi_kmeans(data=server_desc_list, b=2, depth=2)
+
+# %%
+
+def pretty(d, indent=0):
+   for key, value in d.items():
+      print('\t' * indent + str(key))
+      if isinstance(value, dict):
+         pretty(value, indent+1)
+      else:
+         print('\t' * (indent+1) + str(value))
+
+pretty(tree)
+# %%
