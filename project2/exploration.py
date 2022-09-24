@@ -17,7 +17,7 @@ DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
 PLAY_FOLDER = 'playground2'
 
-def load_data(img_folder: str):
+def load_data(img_folder: str, n: int = 50) -> dict:
     '''Loads all the images from img folder and stores them into 2 separate dictionaries (client and server)'''
     imgs = {
         'client': {},
@@ -26,8 +26,8 @@ def load_data(img_folder: str):
     for folder in os.listdir(img_folder):
         folder_loc = f'{img_folder}/{folder}'
         for img in os.listdir(folder_loc):
-            img_loc = f'{folder_loc}/{img}'
-            imgs[folder][img] = cv2.imread(img_loc)
+            if get_obj_number(img) <= n:
+                imgs[folder][img] = cv2.imread(f'{folder_loc}/{img}')
     return imgs['client'], imgs['server']
 
 def save_img(img: ndarray, name: str, kp: list=None, folder: str=PLAY_FOLDER):
@@ -80,117 +80,25 @@ def get_descr_list(server_desc_dict: dict) -> ndarray:
         for desc in server_desc_dict[key]:
             l.append(desc)
     return np.array(l)
-
-def tree_pass(query_desc: ndarray, tree: dict, b: int) -> int:
-    '''
-    Passes down the tree using a certain descriptor vector and returns the key of the leaf.
-    :param query_desc: vector containing a descriptor for an img
-    :param tree: hierarchical tree you want to descend from the root till a leaf node
-    :param b: branch factor used to build the tree
-    :return: index of the visual word the descriptor belongs to
-    '''
-    best_dist = +np.inf
-    best_cluster = -1
-    for cluster_number in range(b):
-        dist = np.linalg.norm(query_desc - tree[cluster_number]['centroid'])
-        if dist < best_dist:
-            best_dist = dist
-            best_cluster = cluster_number
-    if tree['centroids_are_leaf']:
-        return tree[best_cluster]['vis_word_index']
-    return tree_pass(query_desc, tree[best_cluster]['subtree'], b)
-
-def get_query_tf_vector(img: ndarray, perc_desc: float = 1) -> ndarray:
-    '''
-    Returns the tf vector for a query image.
-    :param img: query image
-    :param perc_desc: percentage of descriptors to use
-    :return: tf vector
-    '''
-    # sift feature extraction
-    _, desc = sift.detectAndCompute(img, None)
-    desc = desc[:int(perc_desc * len(desc))]
-    vis_words = np.zeros(np.power(b, depth))
-    for d in desc:
-        vis_words[tree_pass(query_desc=d, tree=tree, b=b)] += 1
-    tf = vis_words / sum(vis_words)
-    return tf
-
-def get_server_TFIDF_weights(server_desc, tree, b, depth):
-    '''
-    Returns the TFIDF weights for the server images.
-    :param server_desc: dictionary containing all the descriptors for each image
-    :param tree: hierarchical tree you want to descend from the root till a leaf node
-    :param b: branch factor used to build the tree
-    :param depth: depth of the tree
-    :return weights: TFIDF weights for the server images
-    :return idf: inverse document frequency vector
-    '''
-    K = len(server_desc.keys())
-    server_scores = {'vis_words_count': {}, 'tf': {}, 'tot_vis_words': {}}
-    pre_idf = np.zeros(shape=(np.power(b,depth)))
-    idf_found = np.zeros(shape=(K, np.power(b, depth)))
-    for obj_number in server_desc.keys():
-        server_scores['vis_words_count'][obj_number] = np.zeros(shape=(np.power(b, depth)))
-        for desc in tqdm(server_desc[obj_number]):
-            idx = tree_pass(query_desc=desc, tree=tree, b=b)
-            server_scores['vis_words_count'][obj_number][idx] += 1
-            if idf_found[obj_number - 1][idx] == 0:
-                pre_idf[idx] += 1
-                idf_found[obj_number - 1][idx] += 1
-        
-        server_scores['tf'][obj_number] = server_scores['vis_words_count'][obj_number] / len(server_desc[obj_number])
-
-    idf = K / pre_idf
-
-    n_vis_words = np.power(b, depth)
-    weights = np.zeros(shape=(n_vis_words, K))
-    for i in range(n_vis_words):
-        for j in range(1, K + 1):
-                weights[i][j - 1] = server_scores['tf'][j][i] * np.log(idf[i])
-    return weights, idf
-
-def recall_rate(K: int, topKbest: int = 1, perc_desc: float = 1.0):
-    '''
-    Returns the recall rate for the given parameters.
-    :param K: number of images to consider for the query
-    :param topKbest: number of best predictions to consider for the recall rate
-    :param perc_desc: percentage of descriptors to consider for the query
-    :return: recall rate
-    '''
-    recall_t = 0
-    for i in tqdm(range(1, K + 1)):
-        tf = get_query_tf_vector(client_imgs[f'obj{i}_t1.JPG'], perc_desc=perc_desc)
-        query_tfidf = tf * idf
-        query_tfidf = np.reshape(query_tfidf, newshape=(-1,1))
-        sim_mtx = np.abs(weights - query_tfidf)
-        scores = np.sum(sim_mtx, axis=0)
-        final = []
-        for idx, score in enumerate(scores):
-            final.append((score, idx + 1))
-        preds = [x[1] for x in sorted(final)[:topKbest]]
-        if i in preds:
-            recall_t += 1
-    return recall_t / K
+    
 class HI:
-    def __init__(self):
+    def __init__(self, b, depth):
         self.counter = 0
+        self.b = b
+        self.depth = depth
 
-    def hi_kmeans(self, data: list, b: int, depth: int, current_depth: int = 0):
+    def build_tree(self, data: list):
+        self.tree = self.hi_kmeans(data)
+
+    def hi_kmeans(self, data: list, current_depth: int = 0):
         '''
         Builds a hierarchical tree using the given keypoints.
-        :param b: number of cluster for each iteration Tree building algorithm.
-        :param depth: number of iterations to build the Tree.
         :return: hierarchical tree as a dictionary
         '''
-        tree_dict = {i: {} for i in range(b)}
-        tree_dict['centroids_are_leaf'] = False
+        tree_dict = {i: {} for i in range(self.b)}
 
-        if len(data) < b or depth == current_depth:
-            print(f'Leaf {self.counter + 1}/{np.power(b, depth)}')
-            return None, True
 
-        KM = KMeans(n_clusters=b, random_state=0, n_init=4)
+        KM = KMeans(n_clusters=self.b, random_state=0, n_init=4)
         KM.fit(X=data)
 
         centroids = KM.cluster_centers_
@@ -198,18 +106,117 @@ class HI:
 
         for centroid_number, centroid in enumerate(centroids):
             tree_dict[centroid_number]['centroid'] = centroid
+            
+
             chosen_idxs = np.where(labels == centroid_number)[0]
-            selected_pts = data[chosen_idxs]
-            tree_dict[centroid_number]['subtree'], is_leaf = self.hi_kmeans(selected_pts, b=b, depth=depth, current_depth=current_depth + 1)
-            if is_leaf:
-                tree_dict['centroids_are_leaf'] = True
+
+            if len(chosen_idxs) <= self.b or self.depth == current_depth + 1:
+                tree_dict[centroid_number]['is_leaf'] = True
                 tree_dict[centroid_number]['vis_word_index'] = self.counter
+                print(f'Leaf {self.counter + 1}/{np.power(self.b, self.depth)}')
                 self.counter += 1
-        return tree_dict, False
+                continue
+            else:
+                tree_dict[centroid_number]['is_leaf'] = False
+                selected_pts = data[chosen_idxs]
+                tree_dict[centroid_number]['subtree'] = self.hi_kmeans(selected_pts, current_depth=current_depth + 1)
+                
+        return tree_dict
+
+    def tree_pass(self, query_desc: ndarray, tree: dict) -> int:
+        '''
+        Passes down the tree using a certain descriptor vector and returns the key of the leaf.
+        :param query_desc: vector containing a descriptor for an img
+        :param tree: hierarchical tree you want to descend from the root till a leaf node
+        :return: index of the visual word the descriptor belongs to
+        '''
+        best_dist = +np.inf
+        best_cluster = -1
+        for cluster_number in range(self.b):
+            dist = np.linalg.norm(query_desc - tree[cluster_number]['centroid'])
+            if dist < best_dist:
+                best_dist = dist
+                best_cluster = cluster_number
+        if tree[best_cluster]['is_leaf']:
+            return tree[best_cluster]['vis_word_index']
+        return self.tree_pass(query_desc, tree[best_cluster]['subtree'])
+
+    def get_query_tf_vector(self, img: ndarray, perc_desc: float = 1) -> ndarray:
+        '''
+        Returns the tf vector for a query image.
+        :param img: query image
+        :param perc_desc: percentage of descriptors to use
+        :return: tf vector
+        '''
+        # sift feature extraction
+        _, desc = sift.detectAndCompute(img, None)
+        desc = desc[:int(perc_desc * len(desc))]
+        vis_words = np.zeros(np.power(b, self.depth))
+        for d in desc:
+            vis_words[self.tree_pass(query_desc=d, tree=self.tree)] += 1
+        tf = vis_words / sum(vis_words)
+        return tf
+
+    def recall_rate(self, K: int, topKbest: int = 1, perc_desc: float = 1.0, sim: str = 'l1') -> float:
+        '''
+        Returns the recall rate for the given parameters.
+        :param K: number of images to consider for the query
+        :param topKbest: number of best predictions to consider for the recall rate
+        :param perc_desc: percentage of descriptors to consider for the query
+        :return: recall rate
+        '''
+        recall_t = 0
+        for i in tqdm(range(1, K + 1)):
+            tf = self.get_query_tf_vector(client_imgs[f'obj{i}_t1.JPG'], perc_desc=perc_desc)
+            query_tfidf = tf * idf
+            query_tfidf = np.reshape(query_tfidf, newshape=(-1,1))
+            sim_mtx = np.abs(weights - query_tfidf)
+            scores = np.sum(sim_mtx, axis=0)
+            final = []
+            for idx, score in enumerate(scores):
+                final.append((score, idx + 1))
+            preds = [x[1] for x in sorted(final)[:topKbest]]
+            if i in preds:
+                recall_t += 1
+        return recall_t / K
+
+    def get_server_TFIDF_weights(self, server_desc):
+        '''
+        Returns the TFIDF weights for the server images.
+        :param server_desc: dictionary containing all the descriptors for each image
+        :return weights: TFIDF weights for the server images
+        :return idf: inverse document frequency vector
+        '''
+        K = len(server_desc.keys())
+        server_scores = {'vis_words_count': {}, 'tf': {}, 'tot_vis_words': {}}
+        pre_idf = np.zeros(shape=(np.power(self.b, self.depth)))
+        idf_found = np.zeros(shape=(K, np.power(self.b, self.depth)))
+        for obj_number in server_desc.keys():
+            server_scores['vis_words_count'][obj_number] = np.zeros(shape=(np.power(b, depth)))
+            for desc in tqdm(server_desc[obj_number]):
+                idx = self.tree_pass(query_desc=desc, tree=self.tree)
+                server_scores['vis_words_count'][obj_number][idx] += 1
+                if idf_found[obj_number - 1][idx] == 0:
+                    pre_idf[idx] += 1
+                    idf_found[obj_number - 1][idx] += 1
+            
+            server_scores['tf'][obj_number] = server_scores['vis_words_count'][obj_number] / len(server_desc[obj_number])
+
+        idf = K / pre_idf
+
+        n_vis_words = np.power(self.b, self.depth)
+        weights = np.zeros(shape=(n_vis_words, K))
+        for i in range(n_vis_words):
+            for j in range(1, K + 1):
+                    weights[i][j - 1] = server_scores['tf'][j][i] * np.log(idf[i])
+        return weights, idf
+
+    
 # %% Data loading and feature extraction
 
 # Load client and server images
-client_imgs, server_imgs = load_data('data2')
+client_imgs, server_imgs = load_data('data2', n=5)
+
 
 # Create SIFT detector
 # have to choose the parameters!
@@ -246,19 +253,75 @@ for img_name in tqdm(server_imgs.keys()):
 
 print(f'The average number of features is:\nserver images: {int(n_server_desc / n_server_imgs)}\nclient images: {int(n_client_desc / n_client_imgs)}')
 
+# %% Building the Vocabulary Tree using b = 4 and depth = 3
+
+b = 4
+depth = 3
+perc_descr = 1.0
+HI_ob = HI(b, depth)
+HI_ob.build_tree(data=get_descr_list(server_desc))
+
+# Compute TFIDF weights 
+weights, idf = HI_ob.get_server_TFIDF_weights(server_desc)
+
+# Querying and recall score
+K = len(server_desc.keys())
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
+
+print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+
 # %% Building the Vocabulary Tree using b=4 and depth=5
 b = 4
 depth = 5
-HI_ob = HI()
-tree, _ = HI_ob.hi_kmeans(data=get_descr_list(server_desc), b=b, depth=depth)
+perc_descr = 1.0
+HI_ob = HI(b, depth)
+HI_ob.build_tree(data=get_descr_list(server_desc))
 
-# %% Compute TFIDF weights 
+# Compute TFIDF weights 
+weights, idf = HI_ob.get_server_TFIDF_weights(server_desc)
 
-weights, idf = get_server_TFIDF_weights(server_desc, tree, b, depth)
-
-# %% Querying and recall score
-
+# Querying and recall score
 K = len(server_desc.keys())
-print(recall_rate(2, topKbest=2))
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
 
- # %%
+print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+
+# %% Building the Vocabulary Tree using b=5 and depth=7
+b = 5
+depth = 7
+perc_descr = 1.0
+HI_ob = HI(b, depth)
+HI_ob.build_tree(data=get_descr_list(server_desc))
+
+# Compute TFIDF weights 
+weights, idf = HI_ob.get_server_TFIDF_weights(server_desc)
+
+# Querying and recall score
+K = len(server_desc.keys())
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
+
+print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+
+top_1_recall_90_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.9)
+top_1_recall_70_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.7)
+top_1_recall_50_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.5)
+
+top_5_recall_90_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.9)
+top_5_recall_70_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.7)
+top_5_recall_50_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.5)
+
+print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (90% of them)')
+print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (70% of them)')
+print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (50% of them)')
+
+print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (90% of them)')
+print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (70% of them)')
+print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (50% of them)')
+
+# %%
