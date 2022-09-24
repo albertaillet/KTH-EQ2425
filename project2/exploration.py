@@ -151,7 +151,7 @@ class HI:
         # sift feature extraction
         _, desc = sift.detectAndCompute(img, None)
         desc = desc[:int(perc_desc * len(desc))]
-        vis_words = np.zeros(np.power(b, self.depth))
+        vis_words = np.zeros(self.counter)
         for d in desc:
             vis_words[self.tree_pass(query_desc=d, tree=self.tree)] += 1
         tf = vis_words / sum(vis_words)
@@ -168,9 +168,10 @@ class HI:
         recall_t = 0
         for i in tqdm(range(1, K + 1)):
             tf = self.get_query_tf_vector(client_imgs[f'obj{i}_t1.JPG'], perc_desc=perc_desc)
-            query_tfidf = tf * idf
+
+            query_tfidf = tf * self.idf
             query_tfidf = np.reshape(query_tfidf, newshape=(-1,1))
-            sim_mtx = np.abs(weights - query_tfidf)
+            sim_mtx = np.abs(self.weights - query_tfidf)
             scores = np.sum(sim_mtx, axis=0)
             final = []
             for idx, score in enumerate(scores):
@@ -188,11 +189,12 @@ class HI:
         :return idf: inverse document frequency vector
         '''
         K = len(server_desc.keys())
+        n_vis_words = self.counter
         server_scores = {'vis_words_count': {}, 'tf': {}, 'tot_vis_words': {}}
-        pre_idf = np.zeros(shape=(np.power(self.b, self.depth)))
-        idf_found = np.zeros(shape=(K, np.power(self.b, self.depth)))
+        pre_idf = np.zeros(shape=n_vis_words)
+        idf_found = np.zeros(shape=(K, n_vis_words))
         for obj_number in server_desc.keys():
-            server_scores['vis_words_count'][obj_number] = np.zeros(shape=(np.power(b, depth)))
+            server_scores['vis_words_count'][obj_number] = np.zeros(shape=n_vis_words)
             for desc in tqdm(server_desc[obj_number]):
                 idx = self.tree_pass(query_desc=desc, tree=self.tree)
                 server_scores['vis_words_count'][obj_number][idx] += 1
@@ -204,18 +206,19 @@ class HI:
 
         idf = K / pre_idf
 
-        n_vis_words = np.power(self.b, self.depth)
+        
         weights = np.zeros(shape=(n_vis_words, K))
         for i in range(n_vis_words):
             for j in range(1, K + 1):
-                    weights[i][j - 1] = server_scores['tf'][j][i] * np.log(idf[i])
-        return weights, idf
+                weights[i][j - 1] = server_scores['tf'][j][i] * np.log(idf[i])
+                
+        self.weights, self.idf = weights, idf
 
     
 # %% Data loading and feature extraction
 
 # Load client and server images
-client_imgs, server_imgs = load_data('data2', n=5)
+client_imgs, server_imgs = load_data('data2', n=50)
 
 
 # Create SIFT detector
@@ -262,7 +265,7 @@ HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_descr_list(server_desc))
 
 # Compute TFIDF weights 
-weights, idf = HI_ob.get_server_TFIDF_weights(server_desc)
+HI_ob.get_server_TFIDF_weights(server_desc)
 
 # Querying and recall score
 K = len(server_desc.keys())
@@ -280,7 +283,7 @@ HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_descr_list(server_desc))
 
 # Compute TFIDF weights 
-weights, idf = HI_ob.get_server_TFIDF_weights(server_desc)
+HI_ob.get_server_TFIDF_weights(server_desc)
 
 # Querying and recall score
 K = len(server_desc.keys())
@@ -293,17 +296,16 @@ print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K}
 # %% Building the Vocabulary Tree using b=5 and depth=7
 b = 5
 depth = 7
-perc_descr = 1.0
 HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_descr_list(server_desc))
 
 # Compute TFIDF weights 
-weights, idf = HI_ob.get_server_TFIDF_weights(server_desc)
+HI_ob.get_server_TFIDF_weights(server_desc)
 
 # Querying and recall score
 K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=1.0)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=1.0)
 
 print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
 print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
