@@ -290,11 +290,10 @@ K = len(server_desc.keys())
 top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
 top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
 
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
 
 # %% Building the Vocabulary Tree using b=5 and depth=7
-b = 5
 depth = 7
 HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_descr_list(server_desc))
@@ -307,8 +306,8 @@ K = len(server_desc.keys())
 top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=1.0)
 top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=1.0)
 
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
 
 top_1_recall_90_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.9)
 top_1_recall_70_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.7)
@@ -318,12 +317,12 @@ top_5_recall_90_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.9)
 top_5_recall_70_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.7)
 top_5_recall_50_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.5)
 
-print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (90% of them)')
-print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (70% of them)')
-print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (50% of them)')
+print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
+print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
+print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
 
-print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (90% of them)')
-print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (70% of them)')
-print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors (50% of them)')
+print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
 
 # %%
