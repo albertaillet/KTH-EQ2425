@@ -1,4 +1,5 @@
 # %% Project imports and functions
+from cmath import cos
 import os
 import cv2 
 import numpy as np
@@ -170,9 +171,22 @@ class HI:
             tf = self.get_query_tf_vector(client_imgs[f'obj{i}_t1.JPG'], perc_desc=perc_desc)
 
             query_tfidf = tf * self.idf
-            query_tfidf = np.reshape(query_tfidf, newshape=(-1,1))
-            sim_mtx = np.abs(self.weights - query_tfidf)
-            scores = np.sum(sim_mtx, axis=0)
+            
+            if sim == 'l1':
+                query_tfidf = np.reshape(query_tfidf, newshape=(-1,1))
+                sim_mtx = np.abs(self.weights - query_tfidf)
+                scores = np.sum(sim_mtx, axis=0)
+            elif sim == 'l2':
+                scores = []
+                for obj_number in range(self.weights.shape[1]):
+                    obj_vector = self.weights[:, obj_number]
+                    scores.append(np.linalg.norm(query_tfidf - obj_vector))
+            elif sim == 'cos':
+                scores = []
+                for obj_number in range(self.weights.shape[1]):
+                    obj_vector = self.weights[:, obj_number]
+                    cosine = np.dot(query_tfidf, obj_vector) / (np.linalg.norm(query_tfidf) * np.linalg.norm(obj_vector))
+                    scores.append(cosine)
             final = []
             for idx, score in enumerate(scores):
                 final.append((score, idx + 1))
@@ -223,6 +237,7 @@ client_imgs, server_imgs = load_data('data2', n=50)
 
 # Create SIFT detector
 # have to choose the parameters!
+sim = 'l2'
 edgeT = 10
 contrastT = 0.12
 sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
@@ -260,6 +275,7 @@ print(f'The average number of features is:\nserver images: {int(n_server_desc / 
 
 b = 4
 depth = 3
+
 perc_descr = 1.0
 HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_descr_list(server_desc))
@@ -269,8 +285,8 @@ HI_ob.get_server_TFIDF_weights(server_desc)
 
 # Querying and recall score
 K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr, sim=sim)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr, sim=sim)
 
 print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
 print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
@@ -287,8 +303,8 @@ HI_ob.get_server_TFIDF_weights(server_desc)
 
 # Querying and recall score
 K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr)
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr, sim=sim)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr, sim=sim)
 
 print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
 print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
@@ -303,19 +319,19 @@ HI_ob.get_server_TFIDF_weights(server_desc)
 
 # Querying and recall score
 K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=1.0)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=1.0)
+top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=1.0, sim=sim)
+top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=1.0, sim=sim)
 
 print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
 print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
 
-top_1_recall_90_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.9)
-top_1_recall_70_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.7)
-top_1_recall_50_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.5)
+top_1_recall_90_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.9, sim=sim)
+top_1_recall_70_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.7, sim=sim)
+top_1_recall_50_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.5, sim=sim)
 
-top_5_recall_90_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.9)
-top_5_recall_70_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.7)
-top_5_recall_50_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.5)
+top_5_recall_90_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.9, sim=sim)
+top_5_recall_70_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.7, sim=sim)
+top_5_recall_50_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.5, sim=sim)
 
 print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
 print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
