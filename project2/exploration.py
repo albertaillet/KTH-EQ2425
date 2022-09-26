@@ -1,5 +1,4 @@
 # %% Project imports and functions
-from cmath import cos
 import os
 import cv2 
 import numpy as np
@@ -20,6 +19,7 @@ PLAY_FOLDER = 'playground2'
 
 def load_data(img_folder: str, n: int = 50) -> dict:
     '''Loads all the images from img folder and stores them into 2 separate dictionaries (client and server)'''
+    print(f'Loading {n} images from {img_folder}...')
     imgs = {
         'client': {},
         'server': {}
@@ -99,7 +99,7 @@ class HI:
         tree_dict = {i: {} for i in range(self.b)}
 
 
-        KM = KMeans(n_clusters=self.b, random_state=0, n_init=4)
+        KM = KMeans(n_clusters=self.b, random_state=3, n_init=4)
         KM.fit(X=data)
 
         centroids = KM.cluster_centers_
@@ -107,8 +107,6 @@ class HI:
 
         for centroid_number, centroid in enumerate(centroids):
             tree_dict[centroid_number]['centroid'] = centroid
-            
-
             chosen_idxs = np.where(labels == centroid_number)[0]
 
             if len(chosen_idxs) <= self.b or self.depth == current_depth + 1:
@@ -116,7 +114,6 @@ class HI:
                 tree_dict[centroid_number]['vis_word_index'] = self.counter
                 print(f'Leaf {self.counter + 1}/{np.power(self.b, self.depth)}')
                 self.counter += 1
-                continue
             else:
                 tree_dict[centroid_number]['is_leaf'] = False
                 selected_pts = data[chosen_idxs]
@@ -237,9 +234,9 @@ client_imgs, server_imgs = load_data('data2', n=50)
 
 # Create SIFT detector
 # have to choose the parameters!
-sim = 'l2'
-edgeT = 10
-contrastT = 0.12
+sim = 'l1'
+edgeT = 0.2
+contrastT = 0.1
 sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
 
 client_desc = {}
@@ -311,6 +308,7 @@ print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K}
 
 # %% Building the Vocabulary Tree using b=5 and depth=7
 depth = 7
+b = 5
 HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_descr_list(server_desc))
 
