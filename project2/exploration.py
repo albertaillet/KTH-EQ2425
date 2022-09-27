@@ -143,7 +143,7 @@ class HI:
         :return: recall rate
         '''
         recall_t = 0
-        for object_index, object_descs in enumerate(object_desc_list):
+        for object_index, object_descs in enumerate(obj_desc_list):
             perc_index = int(perc_desc * len(object_descs))
             tf = self.get_query_tf_vector(object_descs[:perc_index])
 
@@ -210,7 +210,7 @@ class HI:
 # %% Data loading and feature extraction
 
 # Load client and server images
-client_object_imgs, server_object_imgs = load_images(DATA_FOLDER, max_n=10)
+client_object_imgs, server_object_imgs = load_images(DATA_FOLDER, max_n=50)
 
 # Notice that for the server images:
 # - object 26 and 38 only have 2 images
