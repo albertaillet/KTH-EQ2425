@@ -12,6 +12,7 @@ from numpy import ndarray
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
 PLAY_FOLDER = 'playground2'
+RANDOM_STATE = 3
 
 #%% Functions
 
@@ -41,27 +42,27 @@ def get_desc_list(obj_desc_list: list) -> ndarray:
     return np.array([desc for obj_desc in obj_desc_list for desc in obj_desc])
 
 
-def extract_desc(object_imgs_list):
-    object_descs = [[] for _ in object_imgs_list]
+def extract_desc(obj_imgs_list):
+    obj_desc_list = [[] for _ in obj_imgs_list]
     n_desc = 0
     n_imgs = 0
 
-    for i, object_imgs in tqdm(list(enumerate(object_imgs_list))):
-        for img in object_imgs:
+    for i, obj_imgs in tqdm(list(enumerate(obj_imgs_list))):
+        for img in obj_imgs:
             _, desc = sift.detectAndCompute(img, None)
-            object_descs[i].extend(desc)
+            obj_desc_list[i].extend(desc)
 
             n_imgs += 1
             n_desc += len(desc)
-    return object_descs, n_desc, n_imgs
+    return obj_desc_list, n_desc, n_imgs
 
 
 class HI:
-    def __init__(self, b: int, depth: int) -> None:
+    def __init__(self, b: int, depth: int, random_state: int = RANDOM_STATE) -> None:
         self.counter = 0
         self.b = b
         self.max_depth = depth
-       
+        self.random_state = random_state
 
     def build_tree(self, data: ndarray) -> None:
         self.counter = 0
@@ -74,7 +75,11 @@ class HI:
         '''
         tree_dict = {i: {} for i in range(b)}
 
-        KM = KMeans(n_clusters=b, random_state=3, n_init=4)
+        KM = KMeans(
+            n_clusters=b, 
+            random_state=self.random_state, 
+            n_init=4
+        )
         KM.fit(X=data)
 
         centroids = KM.cluster_centers_
@@ -129,7 +134,7 @@ class HI:
         tf = vis_words / np.sum(vis_words)  # shape (n_vis_words, )
         return tf[:, None] # shape (n_vis_words, 1)
 
-    def recall_rate(self, object_desc_list: list, topKbest: int = 1, perc_desc: float = 1.0, sim: str = 'l1') -> float:
+    def recall_rate(self, obj_desc_list: list, topKbest: int = 1, perc_desc: float = 1.0, sim: str = 'l1') -> float:
         '''
         Returns the recall rate for the given parameters.
         :param K: number of images to consider for the query
@@ -162,21 +167,19 @@ class HI:
             if object_index in preds:
                 recall_t += 1
         
-        return recall_t / len(object_desc_list)
+        return recall_t / len(obj_desc_list)
 
     @staticmethod
-    def l1(x: ndarray, m: ndarray) -> float:
-        return np.sum(np.abs(x - m), axis=0)
+    def l1(x: ndarray, y: ndarray) -> float:
+        return np.sum(np.abs(x - y), axis=0)
     
     @staticmethod
-    def l2(x: ndarray, m: ndarray) -> float:
-        return np.linalg.norm(x - m, axis=0)
+    def l2(x: ndarray, y: ndarray) -> float:
+        return np.linalg.norm(x - y, axis=0)
     
     @staticmethod
-    def cosine(a: ndarray, b: ndarray) -> float:
-        norm_a = np.linalg.norm(a, axis=0)
-        norm_b = np.linalg.norm(b, axis=0)
-        return np.tensordot(a,b, axes=([0],[0])) / (norm_a * norm_b)
+    def cosine(x: ndarray, y: ndarray) -> float:
+        return np.tensordot(x, y, ([0],[0])) / (np.linalg.norm(x, axis=0) * np.linalg.norm(y, axis=0))
 
     def get_server_TFIDF_weights(self, server_object_desc):
         '''
@@ -238,7 +241,7 @@ b = 4
 depth = 3
 
 perc_descr = 1.0
-HI_ob = HI(b, depth, sift)
+HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_desc_list(server_obj_desc))
 
 # %% Compute TFIDF weights 
@@ -255,7 +258,7 @@ print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {le
 b = 4
 depth = 5
 perc_descr = 1.0
-HI_ob = HI(b, depth, sift)
+HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_desc_list(server_obj_desc))
 
 # Compute TFIDF weights 
@@ -271,7 +274,7 @@ print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {le
 # %% Building the Vocabulary Tree using b=5 and depth=7
 depth = 7
 b = 5
-HI_ob = HI(b, depth, sift)
+HI_ob = HI(b, depth)
 HI_ob.build_tree(data=get_desc_list(server_obj_desc))
 
 # Compute TFIDF weights 
@@ -292,12 +295,12 @@ top_5_recall_90_perc = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=
 top_5_recall_70_perc = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=0.7, sim=sim)
 top_5_recall_50_perc = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=0.5, sim=sim)
 
-print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
-print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
-print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
+print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
+print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
+print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
 
-print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
+print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
 
 # %%
