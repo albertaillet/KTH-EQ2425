@@ -138,7 +138,7 @@ class HI:
         :return: recall rate
         '''
         recall_t = 0
-        for i, object_descs in enumerate(object_desc_list):
+        for object_index, object_descs in enumerate(object_desc_list):
             perc_index = int(perc_desc * len(object_descs))
             tf = self.get_query_tf_vector(object_descs[:perc_index])
 
@@ -153,10 +153,13 @@ class HI:
                 scores = HI.cosine(query_tfidf, server_tfidf)
             else:
                 raise ValueError('Invalid similarity function')
+            
+            if sim == 'cos':
+                preds = np.argsort(scores)[::-1][:topKbest].tolist()
+            else:
+                preds = np.argsort(scores)[:topKbest].tolist()
 
-            preds = np.argsort(scores)[::-1][:topKbest].tolist()
-
-            if i in preds:
+            if object_index in preds:
                 recall_t += 1
         
         return recall_t / len(object_desc_list)
