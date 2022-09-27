@@ -99,7 +99,7 @@ class HI:
         tree_dict = {i: {} for i in range(self.b)}
 
 
-        KM = KMeans(n_clusters=self.b, random_state=3, n_init=4)
+        KM = KMeans(n_clusters=self.b)
         KM.fit(X=data)
 
         centroids = KM.cluster_centers_
@@ -215,13 +215,13 @@ class HI:
             
             server_scores['tf'][obj_number] = server_scores['vis_words_count'][obj_number] / len(server_desc[obj_number])
 
-        idf = K / pre_idf
+        idf = np.log(K / pre_idf)
 
         
         weights = np.zeros(shape=(n_vis_words, K))
         for i in range(n_vis_words):
             for j in range(1, K + 1):
-                weights[i][j - 1] = server_scores['tf'][j][i] * np.log(idf[i])
+                weights[i][j - 1] = server_scores['tf'][j][i] * idf[i]
                 
         self.weights, self.idf = weights, idf
 
