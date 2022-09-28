@@ -83,7 +83,7 @@
   lat: '59.3323269'
   lon: '18.0720552'
 22:
-  address: Kungsträdgårdsgatan 4
+  address:  
   lat: '59.332788'
   lon: '18.0715775'
 23:
@@ -92,8 +92,8 @@
   lon: '18.0715775'
 24:
   address: Strandvägen 8
-  lat: '59.75377885'
-  lon: '18.725452913945787'
+  lat: '59.3314902'
+  lon: '18.0804462'
 25:
   address: Stallgatan 4
   lat: '59.3300224'
@@ -112,8 +112,8 @@
   lon: '18.0765985'
 29:
   address: Birger Jarlsgatan 18
-  lat: '59.3418472'
-  lon: '18.0645479'
+  lat: '59.3350034'
+  lon: '18.0736093'
 30:
   address: Nybrokajen 11
   lat: '59.3311965'
@@ -146,6 +146,10 @@
   address: Birger Jarlsgatan 11
   lat: '59.3342102'
   lon: '18.0742803'
+38: 
+  address: Birger Jarlsgatan 17
+  lat: '59.3350034'
+  lon: '18.0736093'
 39:
   address: Klara Norra kyrkogata 22
   lat: '59.3351208'
@@ -168,16 +172,16 @@
   lon: '18.0738592'
 44:
   address: Borggården
-  lat: '59.4032646'
-  lon: '18.35919319412946'
+  lat: '59.3474208'
+  lon: '18.0738028'
 45:
   address: Södra Blasieholmshamnen 11
   lat: '59.3295522'
   lon: '18.0740023'
 46:
-  address: Hamngatan 9
-  lat: '59.3562772'
-  lon: '17.967444'
+  address: Norrmalmstorg
+  lat: '59.3330501'
+  lon: '18.072488'
 47:
   address: Drottninggatan 5
   lat: '59.3295237'

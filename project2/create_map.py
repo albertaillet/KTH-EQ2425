@@ -46,15 +46,27 @@ with open(f'{FOLDER}/locations.yml') as f:
     locations = yaml.load(f, Loader=yaml.SafeLoader)
 
 # %% Create a map with the locations
-fig = go.Figure(go.Scattermapbox(
-        lat=[l['lat'] for l in locations.values()],
-        lon=[l['lon'] for l in locations.values()],
-        mode='markers',
-        marker=go.scattermapbox.Marker(
-            size=10
+fig = go.Figure(
+    data=[
+        go.Scattermapbox(
+            lat=[l['lat'] for l in locations.values()],
+            lon=[l['lon'] for l in locations.values()],
+            text=[id for id in locations.keys()],
+            customdata=[l['address'] for l in locations.values()],
+            mode='markers+text',
+            marker=go.scattermapbox.Marker(
+                size=10,
+                opacity=0.7
+            ),
+            hovertemplate=(
+                'Location: %{text}<br>'
+                'Address: %{customdata}<br>'
+                'Latitude: %{lat}<br>'
+                'Longitude: %{lon}<br>'
+                '<extra></extra>'
+            )
         ),
-        text=['Location of Photos'],
-    ),
+    ],
     layout=go.Layout(
         hovermode='closest',
         mapbox_style='carto-positron',
@@ -65,11 +77,11 @@ fig = go.Figure(go.Scattermapbox(
                 lon=18.0686
             ),
             pitch=0,
-            zoom=11
+            zoom=13
         ),
+        width=800,
+        height=1000,
     )
 )
 fig
 # %%
-# %%
-
