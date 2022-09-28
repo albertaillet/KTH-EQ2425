@@ -1,13 +1,15 @@
 # %% Project imports and functions
 import cv2 
+import pickle
 import numpy as np
 from glob import glob
 from tqdm import tqdm, trange
-
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 
 # for typing
 from numpy import ndarray
+from typing import Union
 
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
@@ -58,15 +60,21 @@ def extract_desc(obj_imgs_list):
 
 
 class HI:
-    def __init__(self, b: int, depth: int, random_state: int = RANDOM_STATE) -> None:
+    def __init__(self, b: int, depth: int, random_state: int=RANDOM_STATE) -> None:
         self.counter = 0
         self.b = b
         self.max_depth = depth
         self.random_state = random_state
 
-    def build_tree(self, data: ndarray) -> None:
+    def build_tree(self, data: ndarray, n_components: Union[int, float]=0) -> None:
+        if n_components != 0:
+            pca = PCA(n_components)
+            reduced_data = pca.fit_transform(data)
+        else:
+            reduced_data = data
+        
         self.counter = 0
-        self.tree = self.hi_kmeans(data, self.b)
+        self.tree = self.hi_kmeans(reduced_data, self.b)
 
     def hi_kmeans(self, data: ndarray, b: int, depth: int = 0)  -> dict:
         '''
@@ -235,6 +243,20 @@ print('The average number of features is:'
     +f'\n server images: {int(n_server_desc / n_server_imgs)}'
     +f'\n client images: {int(n_client_desc / n_client_imgs)}'
 )
+
+# %% Save descriptors as pickle files
+with open(f'{OUT_FOLDER}/client_desc.pkl', 'wb') as f:
+    pickle.dump(client_obj_desc, f)
+
+with open(f'{OUT_FOLDER}/server_desc.pkl', 'wb') as f:
+    pickle.dump(server_obj_desc, f)
+
+# %% Load descriptors from pickle files
+with open(f'{OUT_FOLDER}/client_desc.pkl', 'rb') as f:
+    client_obj_desc = pickle.load(f)
+
+with open(f'{OUT_FOLDER}/server_desc.pkl', 'rb') as f:
+    server_obj_desc = pickle.load(f)
 
 # %% Building the Vocabulary Tree using b = 4 and depth = 3
 b = 4
