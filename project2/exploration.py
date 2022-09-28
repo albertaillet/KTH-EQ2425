@@ -1,123 +1,115 @@
 # %% Project imports and functions
-import os
 import cv2 
+import pickle
 import numpy as np
-import matplotlib.pyplot as plt
+from glob import glob
+from tqdm import tqdm, trange
 from sklearn.cluster import KMeans
-from tqdm import tqdm
-import re
-
+from sklearn.decomposition import PCA
 
 # for typing
 from numpy import ndarray
-from typing import List, Union
-detector_type = Union[cv2.xfeatures2d_SIFT, cv2.xfeatures2d_SURF]
+from typing import Union, List
 
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
 PLAY_FOLDER = 'playground2'
+RANDOM_STATE = 1
 
-def load_data(img_folder: str, n: int = 50) -> dict:
-    '''Loads all the images from img folder and stores them into 2 separate dictionaries (client and server)'''
-    print(f'Loading {n} images from {img_folder}...')
-    imgs = {
-        'client': {},
-        'server': {}
-    }
-    for folder in os.listdir(img_folder):
-        folder_loc = f'{img_folder}/{folder}'
-        for img in os.listdir(folder_loc):
-            if get_obj_number(img) <= n:
-                imgs[folder][img] = cv2.imread(f'{folder_loc}/{img}')
-    return imgs['client'], imgs['server']
+#%% Functions
 
-def save_img(img: ndarray, name: str, kp: list=None, folder: str=PLAY_FOLDER):
-    'Saves the image to disk, if given adds keypoints'
-    if kp is not None:
-        colors=[(0,255,0), (255,0,0)]
-        for idx, k in enumerate(kp):
-            img = cv2.drawKeypoints(img, keypoints=k, outImage=None, color=colors[idx])
-    # save image using cv
-    cv2.imwrite(f'{folder}/{name}.jpg', img)
+def load_images(img_folder: str, max_n: int = 50) -> tuple:
+    '''Loads all the images from img folder and stores them into 2 separate lists (client and server)'''
+    assert max_n <= 50, 'there is at most 50 images to load'
 
-def get_obj_number(img_name: str, start: str = 'obj', end: str = '_') -> int:
-    '''
-    Extracts the object number from the image name
-    :param img_name: name of the image
-    :param start: string that precedes the object number
-    :param end: string that follows the object number
-    :return: object number
-    '''
-    result = re.search(f'{start}(.*){end}', img_name)
-    return int(result.group(1))
-
-def plot(x, y, xlabel, ylabel, title, xlim=None, filename=None):
-    plt.plot(x, y, 'x-')
-    plt.title(title)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    if xlim:
-        plt.xlim(xlim)
-        plt.xticks(x[::3])
-    plt.ylim(0, 1)
-    plt.grid()
-
-    if filename:
-        plt.savefig(filename)
+    client = [
+        [cv2.imread(f'{img_folder}/client/obj{n}_t1.JPG')]
+        for n in trange(1, max_n+1, desc=f'Loading {max_n} client images')
+    ]
     
-    plt.show()
+    server = [
+        [
+            cv2.imread(img_path) for img_path in glob(f'{img_folder}/server/obj{n}_[0-9].JPG')
+        ] for n in trange(1, max_n+1, desc=f'Loading {max_n} server images')
+    ]
+    return client, server
 
-def detect_keypoints(img: ndarray, detector: detector_type) -> list:
-    return detector.detect(img, None)
 
-def get_descr_list(server_desc_dict: dict) -> ndarray:
+def get_desc_list(obj_desc_list: list) -> ndarray:
     '''
-    Returns a list of all the descriptors in the server_desc_dict.
-    :param server_desc_dict: dictionary containing all the descriptors for each image
-    :return: list of all the descriptors
+    Returns a flattened list of all the descriptors in the obj_desc_list.
+    :param desc: list containing all the descriptors for each object
+    :return: flattened array of all the descriptors
     '''
-    l = list()
-    for key in server_desc_dict.keys():
-        for desc in server_desc_dict[key]:
-            l.append(desc)
-    return np.array(l)
-    
+    return np.array([desc for obj_desc in obj_desc_list for desc in obj_desc])
+
+
+def extract_desc(obj_imgs_list):
+    obj_desc_list = [[] for _ in obj_imgs_list]
+    n_desc = 0
+    n_imgs = 0
+
+    for i, obj_imgs in tqdm(list(enumerate(obj_imgs_list))):
+        for img in obj_imgs:
+            _, desc = sift.detectAndCompute(img, None)
+            obj_desc_list[i].extend(desc)
+
+            n_imgs += 1
+            n_desc += len(desc)
+    return obj_desc_list, n_desc, n_imgs
+
+
 class HI:
-    def __init__(self, b, depth):
+    def __init__(self, b: int, depth: int, random_state: int=RANDOM_STATE) -> None:
         self.counter = 0
         self.b = b
-        self.depth = depth
+        self.max_depth = depth
+        self.random_state = random_state
 
-    def build_tree(self, data: list):
-        self.tree = self.hi_kmeans(data)
+    def build_tree(self, data: ndarray, n_components: Union[int, float]=0) -> None:
+        self.n_components = n_components
+        if n_components != 0:
+            self.pca = PCA(n_components)
+            reduced_data = self.pca.fit_transform(data)
+        else:
+            reduced_data = data
+        
+        self.counter = 0
+        self.tree = self.hi_kmeans(reduced_data, self.b)
 
-    def hi_kmeans(self, data: list, current_depth: int = 0):
+    def hi_kmeans(self, data: ndarray, b: int, depth: int = 0)  -> dict:
         '''
         Builds a hierarchical tree using the given keypoints.
         :return: hierarchical tree as a dictionary
         '''
-        tree_dict = {i: {} for i in range(self.b)}
+        tree_dict = {i: {} for i in range(b)}
 
+        # K means clustering using cv2
+        _, labels, centroids = cv2.kmeans(data, b, None, (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0), 10, cv2.KMEANS_RANDOM_CENTERS)
 
-        KM = KMeans(n_clusters=self.b)
-        KM.fit(X=data)
+        # KM = KMeans(
+        #     n_clusters=b, 
+        #     random_state=self.random_state, 
+        #     n_init=4
+        # )
+        # KM.fit(X=data)
 
-        centroids = KM.cluster_centers_
-        labels = KM.labels_
+        # centroids = KM.cluster_centers_
+        # labels = KM.labels_
 
-        for centroid_number, centroid in enumerate(centroids):
-            tree_dict[centroid_number]['centroid'] = centroid
-            chosen_idxs = np.where(labels == centroid_number)[0]
+        for centroid_index, centroid in enumerate(centroids):
+            tree_dict[centroid_index]['centroid'] = centroid
+            chosen_idxs = np.where(labels == centroid_index)[0]
 
-            if len(chosen_idxs) <= self.b or self.depth == current_depth + 1:
-                tree_dict[centroid_number]['is_leaf'] = True
-                tree_dict[centroid_number]['vis_word_index'] = self.counter
-                print(f'Leaf {self.counter + 1}/{np.power(self.b, self.depth)}')
+            if len(chosen_idxs) <= b or self.max_depth == depth + 1:
+                tree_dict[centroid_index]['is_leaf'] = True
+                tree_dict[centroid_index]['vis_word_index'] = self.counter
                 self.counter += 1
+                print(f'Leaf {self.counter}/{np.power(b, self.max_depth)}', end='\r')
             else:
-                tree_dict[centroid_number]['is_leaf'] = False
+                tree_dict[centroid_index]['is_leaf'] = False
                 selected_pts = data[chosen_idxs]
-                tree_dict[centroid_number]['subtree'] = self.hi_kmeans(selected_pts, current_depth=current_depth + 1)
+                tree_dict[centroid_index]['subtree'] = self.hi_kmeans(selected_pts, b, depth + 1)
                 
         return tree_dict
 
@@ -128,34 +120,36 @@ class HI:
         :param tree: hierarchical tree you want to descend from the root till a leaf node
         :return: index of the visual word the descriptor belongs to
         '''
+        if self.n_components != 0 and query_desc.shape[0] == 128:
+            query_desc = self.pca.transform(query_desc.reshape(1, -1)).flatten()
+
         best_dist = +np.inf
-        best_cluster = -1
-        for cluster_number in range(self.b):
-            dist = np.linalg.norm(query_desc - tree[cluster_number]['centroid'])
+        best_cluster_index = -1
+        
+        for cluster_index in range(self.b):
+            dist = np.linalg.norm(query_desc - tree[cluster_index]['centroid'])
             if dist < best_dist:
                 best_dist = dist
-                best_cluster = cluster_number
-        if tree[best_cluster]['is_leaf']:
-            return tree[best_cluster]['vis_word_index']
-        return self.tree_pass(query_desc, tree[best_cluster]['subtree'])
+                best_cluster_index = cluster_index      
+        if tree[best_cluster_index]['is_leaf']:
+            return tree[best_cluster_index]['vis_word_index']
+        return self.tree_pass(query_desc, tree[best_cluster_index]['subtree'])
 
-    def get_query_tf_vector(self, img: ndarray, perc_desc: float = 1) -> ndarray:
+    def get_query_tf_vector(self, descs: ndarray) -> ndarray:
         '''
         Returns the tf vector for a query image.
         :param img: query image
         :param perc_desc: percentage of descriptors to use
-        :return: tf vector
+        :return: tf vector with shape (n_vis_words, 1)
         '''
         # sift feature extraction
-        _, desc = sift.detectAndCompute(img, None)
-        desc = desc[:int(perc_desc * len(desc))]
         vis_words = np.zeros(self.counter)
-        for d in desc:
-            vis_words[self.tree_pass(query_desc=d, tree=self.tree)] += 1
-        tf = vis_words / sum(vis_words)
-        return tf
+        for desc in descs:
+            vis_words[self.tree_pass(desc, self.tree)] += 1
+        tf = vis_words / np.sum(vis_words)  # shape (n_vis_words, )
+        return tf[:, None] # shape (n_vis_words, 1)
 
-    def recall_rate(self, K: int, topKbest: int = 1, perc_desc: float = 1.0, sim: str = 'l1') -> float:
+    def recall_rate(self, obj_desc_list: list, topKbest: int = 1, perc_desc: float = 1.0, sim: str = 'l1') -> float:
         '''
         Returns the recall rate for the given parameters.
         :param K: number of images to consider for the query
@@ -164,179 +158,158 @@ class HI:
         :return: recall rate
         '''
         recall_t = 0
-        for i in tqdm(range(1, K + 1)):
-            tf = self.get_query_tf_vector(client_imgs[f'obj{i}_t1.JPG'], perc_desc=perc_desc)
+        for object_index, object_descs in enumerate(obj_desc_list):
+            perc_index = int(perc_desc * len(object_descs))
+            tf = self.get_query_tf_vector(object_descs[:perc_index])
 
-            query_tfidf = tf * self.idf
+            query_tfidf = tf * self.idf  # shape (n_vis_words, 1)
+            server_tfidf = self.weights  # shape (n_vis_words, n_objects)
             
             if sim == 'l1':
-                query_tfidf = np.reshape(query_tfidf, newshape=(-1,1))
-                sim_mtx = np.abs(self.weights - query_tfidf)
-                scores = np.sum(sim_mtx, axis=0)
+                scores = HI.l1(query_tfidf, server_tfidf)
             elif sim == 'l2':
-                scores = []
-                for obj_number in range(self.weights.shape[1]):
-                    obj_vector = self.weights[:, obj_number]
-                    scores.append(np.linalg.norm(query_tfidf - obj_vector))
+                scores = HI.l2(query_tfidf, server_tfidf)
             elif sim == 'cos':
-                scores = []
-                for obj_number in range(self.weights.shape[1]):
-                    obj_vector = self.weights[:, obj_number]
-                    cosine = np.dot(query_tfidf, obj_vector) / (np.linalg.norm(query_tfidf) * np.linalg.norm(obj_vector))
-                    scores.append(cosine)
-            final = []
-            for idx, score in enumerate(scores):
-                final.append((score, idx + 1))
-            preds = [x[1] for x in sorted(final)[:topKbest]]
-            if i in preds:
-                recall_t += 1
-        return recall_t / K
+                scores = HI.cosine(query_tfidf, server_tfidf)
+            else:
+                raise ValueError('Invalid similarity function')
+            
+            if sim == 'cos':
+                preds = np.argsort(scores)[::-1][:topKbest].tolist()
+            else:
+                preds = np.argsort(scores)[:topKbest].tolist()
 
-    def get_server_TFIDF_weights(self, server_desc):
+            if object_index in preds:
+                recall_t += 1
+        
+        return recall_t / len(obj_desc_list)
+
+    @staticmethod
+    def l1(x: ndarray, y: ndarray) -> float:
+        return np.sum(np.abs(x - y), axis=0)
+    
+    @staticmethod
+    def l2(x: ndarray, y: ndarray) -> float:
+        return np.linalg.norm(x - y, axis=0)
+    
+    @staticmethod
+    def cosine(x: ndarray, y: ndarray) -> float:
+        return np.tensordot(x, y, ([0],[0])) / (np.linalg.norm(x, axis=0) * np.linalg.norm(y, axis=0))
+
+    def get_server_TFIDF_weights(self, server_object_desc):
         '''
         Returns the TFIDF weights for the server images.
         :param server_desc: dictionary containing all the descriptors for each image
         :return weights: TFIDF weights for the server images
         :return idf: inverse document frequency vector
         '''
-        K = len(server_desc.keys())
+        n_objects = len(server_object_desc)
         n_vis_words = self.counter
-        server_scores = {'vis_words_count': {}, 'tf': {}, 'tot_vis_words': {}}
-        pre_idf = np.zeros(shape=n_vis_words)
-        idf_found = np.zeros(shape=(K, n_vis_words))
-        for obj_number in server_desc.keys():
-            server_scores['vis_words_count'][obj_number] = np.zeros(shape=n_vis_words)
-            for desc in tqdm(server_desc[obj_number]):
-                idx = self.tree_pass(query_desc=desc, tree=self.tree)
-                server_scores['vis_words_count'][obj_number][idx] += 1
-                if idf_found[obj_number - 1][idx] == 0:
-                    pre_idf[idx] += 1
-                    idf_found[obj_number - 1][idx] += 1
-            
-            server_scores['tf'][obj_number] = server_scores['vis_words_count'][obj_number] / len(server_desc[obj_number])
 
-        idf = np.log(K / pre_idf)
+        vis_words_count = np.zeros((n_vis_words, n_objects))  # shape (n_vis_words, n_objects)
 
+        for obj_index, obj_desc in enumerate(server_object_desc):
+            for desc in obj_desc:
+                desc_vis_word_index = self.tree_pass(desc, self.tree)
+                vis_words_count[desc_vis_word_index][obj_index] += 1
         
-        weights = np.zeros(shape=(n_vis_words, K))
-        for i in range(n_vis_words):
-            for j in range(1, K + 1):
-                weights[i][j - 1] = server_scores['tf'][j][i] * idf[i]
-                
+        tf = vis_words_count / np.sum(vis_words_count, axis=0, keepdims=True)  # shape (n_vis_words, n_objects)
+
+        idf = np.log(n_objects / (1e-3 + np.sum(np.array(vis_words_count, dtype=bool), axis=1, keepdims=True)))  # shape (n_vis_words, 1)
+        
+        weights = tf * idf  # shape (n_vis_words, n_objects)
+
         self.weights, self.idf = weights, idf
+
+def tree_recall(
+    server_obj_desc: List[List[ndarray]], 
+    client_obj_desc: List[List[ndarray]], 
+    b: int, 
+    depth: int,
+    perc_descr: List[float] = [1], 
+    n_components: List[float] = [0], 
+    sims: List[str] = ['l1'],
+    random_state = 42
+) -> None:
+    HI_ob = HI(b, depth, random_state)
+    for n_comp in n_components:
+        HI_ob.build_tree(data=get_desc_list(server_obj_desc), n_components=n_comp)
+
+        # Compute TFIDF weights 
+        HI_ob.get_server_TFIDF_weights(server_obj_desc)
+
+        for perc in perc_descr:
+            for sim in sims:
+                # Querying and recall score
+                top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc, sim=sim)
+                top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc, sim=sim)
+
+                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc * 100}% of desc per query, number of components = {n_comp}')
+                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc * 100}% of desc per query, number of components = {n_comp}')
+
 
     
 # %% Data loading and feature extraction
 
 # Load client and server images
-client_imgs, server_imgs = load_data('data2', n=50)
+client_object_imgs, server_object_imgs = load_images(DATA_FOLDER, max_n=50)
 
+# Notice that for the server images:
+# - object 26 and 38 only have 2 images
+# - object 37 has 4 images
+# - all other objects have 3 images
 
-# Create SIFT detector
+# %% Create SIFT detector
 # have to choose the parameters!
-sim = 'l1'
+
 edgeT = 0.2
 contrastT = 0.1
 sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
 
-client_desc = {}
-server_desc = {}
+# %% Extract descriptor for client images
+client_obj_desc, n_client_desc, n_client_imgs = extract_desc(client_object_imgs)
 
-# Extract descriptor for client images
-n_client_desc = 0
-n_client_imgs = 0
-for img_name in tqdm(client_imgs.keys()):
-    n_client_imgs += 1
-    obj_number = get_obj_number(img_name)
-    _, desc = sift.detectAndCompute(client_imgs[img_name], None)
-    client_desc[obj_number] = desc
-    n_client_desc += len(desc)
+# %% Extract descriptor for server images
+server_obj_desc, n_server_desc, n_server_imgs = extract_desc(server_object_imgs)
 
-# Extract descriptor for server images
-n_server_desc = 0 
-n_server_imgs = 0 
-for img_name in tqdm(server_imgs.keys()):
-    obj_number = get_obj_number(img_name)
-    n_server_imgs += 1
-    if obj_number not in server_desc.keys():
-        server_desc[obj_number] = []
-    _, desc = sift.detectAndCompute(server_imgs[img_name], None)
-    for d in desc:
-        server_desc[obj_number].append(d)
-    n_server_desc += len(desc)
-    
+# %% Print average number of features
+print('The average number of features is:'
+    +f'\n server images: {int(n_server_desc / n_server_imgs)}'
+    +f'\n client images: {int(n_client_desc / n_client_imgs)}'
+)
 
-print(f'The average number of features is:\nserver images: {int(n_server_desc / n_server_imgs)}\nclient images: {int(n_client_desc / n_client_imgs)}')
+# %% Save descriptors as pickle files
+# with open(f'{OUT_FOLDER}/client_desc.pkl', 'wb') as f:
+#     pickle.dump(client_obj_desc, f)
+
+# with open(f'{OUT_FOLDER}/server_desc.pkl', 'wb') as f:
+#     pickle.dump(server_obj_desc, f)
+
+# # %% Load descriptors from pickle files
+# with open(f'{OUT_FOLDER}/client_desc.pkl', 'rb') as f:
+#     client_obj_desc = pickle.load(f)
+
+# with open(f'{OUT_FOLDER}/server_desc.pkl', 'rb') as f:
+#     server_obj_desc = pickle.load(f)
 
 # %% Building the Vocabulary Tree using b = 4 and depth = 3
-
 b = 4
 depth = 3
-
-perc_descr = 1.0
-HI_ob = HI(b, depth)
-HI_ob.build_tree(data=get_descr_list(server_desc))
-
-# Compute TFIDF weights 
-HI_ob.get_server_TFIDF_weights(server_desc)
-
-# Querying and recall score
-K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr, sim=sim)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
+n_components = [0.8]
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
 
 # %% Building the Vocabulary Tree using b=4 and depth=5
 b = 4
 depth = 5
-perc_descr = 1.0
-HI_ob = HI(b, depth)
-HI_ob.build_tree(data=get_descr_list(server_desc))
-
-# Compute TFIDF weights 
-HI_ob.get_server_TFIDF_weights(server_desc)
-
-# Querying and recall score
-K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=perc_descr, sim=sim)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=perc_descr, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
+n_components = [0.8]
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
 
 # %% Building the Vocabulary Tree using b=5 and depth=7
 depth = 7
 b = 5
-HI_ob = HI(b, depth)
-HI_ob.build_tree(data=get_descr_list(server_desc))
+perc_descr = [1.0, 0.9, 0.7, 0.5]
+n_components = [0.8]
+sims = ['l1', 'l2', 'cos']
 
-# Compute TFIDF weights 
-HI_ob.get_server_TFIDF_weights(server_desc)
+tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr, n_components=n_components, random_state=RANDOM_STATE, sims=sims)
 
-# Querying and recall score
-K = len(server_desc.keys())
-top_1_recall = HI_ob.recall_rate(K, topKbest=1, perc_desc=1.0, sim=sim)
-top_5_recall = HI_ob.recall_rate(K, topKbest=5, perc_desc=1.0, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-
-top_1_recall_90_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.9, sim=sim)
-top_1_recall_70_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.7, sim=sim)
-top_1_recall_50_perc = HI_ob.recall_rate(K, topKbest=1, perc_desc=0.5, sim=sim)
-
-top_5_recall_90_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.9, sim=sim)
-top_5_recall_70_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.7, sim=sim)
-top_5_recall_50_perc = HI_ob.recall_rate(K, topKbest=5, perc_desc=0.5, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
-print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
-print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
-
-print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {K} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
-
-# %%
