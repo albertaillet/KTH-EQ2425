@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from glob import glob
 from tqdm import tqdm, trange
+import matplotlib.pyplot as plt
 
 from sklearn.cluster import KMeans
 
@@ -42,7 +43,7 @@ def get_desc_list(obj_desc_list: list) -> ndarray:
     return np.array([desc for obj_desc in obj_desc_list for desc in obj_desc])
 
 
-def extract_desc(obj_imgs_list):
+def extract_desc(obj_imgs_list, sift):
     obj_desc_list = [[] for _ in obj_imgs_list]
     n_desc = 0
     n_imgs = 0
@@ -56,6 +57,54 @@ def extract_desc(obj_imgs_list):
             n_desc += len(desc)
     return obj_desc_list, n_desc, n_imgs
 
+def marcel_plots():
+    import seaborn as sns
+
+    # Evaluate effect of max_depth
+    depths = []
+    recall_d_top1s = []
+    recall_d_top5s = []
+    B = 5
+    for max_depth in range(2, 13):
+        r1, r5 = evaluate_performance(B, max_depth)   ##### YOUR COMPUTATION HERE #####
+        recall_d_top1s.append(r1)
+        recall_d_top5s.append(r5)
+        depths.append(max_depth)
+
+    # Create seaborn lineplot for recall top 1
+    fig = plt.figure(figsize=(10, 5))
+    ax = sns.lineplot(x=depths, y=recall_d_top1s, label="Recall top 1")
+    ax = sns.lineplot(x=depths, y=recall_d_top5s, label="Recall top 5")
+    ax.set(xlabel="Max depth", ylabel="Recall")
+    ax.set_title(f"Recall for different max depth values (B={B})")
+    ax.set_ylim(0, 1.05)
+    plt.tight_layout()
+    fig.savefig(f"recall_vs_depth_for_B={B}.png")
+    plt.close(fig)
+
+
+    # Evaluate effect of B
+    Bs = []
+    recall_B_top1s = []
+    recall_B_top5s = []
+    max_depth = 5
+    for B in range(2, 13):
+        r1, r5 = evaluate_performance(B, max_depth)   ##### YOUR COMPUTATION HERE #####
+        print(r1, r5)
+        recall_B_top1s.append(r1)
+        recall_B_top5s.append(r5)
+        Bs.append(B)
+
+    # Create seaborn lineplot for recall top 1
+    fig = plt.figure(figsize=(10, 5))
+    ax = sns.lineplot(x=Bs, y=recall_B_top1s, label="Recall top 1")
+    ax = sns.lineplot(x=Bs, y=recall_B_top5s, label="Recall top 5")
+    ax.set(xlabel="B", ylabel="Recall")
+    ax.set_title(f"Recall for different B values (max_depth={max_depth})")
+    ax.set_ylim(0, 1.05)
+    plt.tight_layout()
+    fig.savefig(f"recall_vs_B_for_depth={max_depth}.png")
+    plt.close(fig)
 
 class HI:
     def __init__(self, b: int, depth: int, random_state: int = RANDOM_STATE) -> None:
@@ -206,101 +255,47 @@ class HI:
 
         self.weights, self.idf = weights, idf
 
-    
-# %% Data loading and feature extraction
+def evaluate_performance(b, depth):
+    # Load client and server images
+    client_object_imgs, server_object_imgs = load_images(DATA_FOLDER, max_n=50)
 
-# Load client and server images
-client_object_imgs, server_object_imgs = load_images(DATA_FOLDER, max_n=50)
+    # Notice that for the server images:
+    # - object 26 and 38 only have 2 images
+    # - object 37 has 4 images
+    # - all other objects have 3 images
 
-# Notice that for the server images:
-# - object 26 and 38 only have 2 images
-# - object 37 has 4 images
-# - all other objects have 3 images
+    # %% Create SIFT detector
+    # have to choose the parameters!
+    sim = 'l1'
+    edgeT = 0.2
+    contrastT = 0.1
+    sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
 
-# %% Create SIFT detector
-# have to choose the parameters!
-sim = 'l1'
-edgeT = 0.2
-contrastT = 0.1
-sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
+    # %% Extract descriptor for client images
+    client_obj_desc, n_client_desc, n_client_imgs = extract_desc(client_object_imgs, sift)
 
-# %% Extract descriptor for client images
-client_obj_desc, n_client_desc, n_client_imgs = extract_desc(client_object_imgs)
+    # %% Extract descriptor for server images
+    server_obj_desc, n_server_desc, n_server_imgs = extract_desc(server_object_imgs, sift)
 
-# %% Extract descriptor for server images
-server_obj_desc, n_server_desc, n_server_imgs = extract_desc(server_object_imgs)
+    # %% Print average number of features
+    print('The average number of features is:'
+        +f'\n server images: {int(n_server_desc / n_server_imgs)}'
+        +f'\n client images: {int(n_client_desc / n_client_imgs)}'
+    )
 
-# %% Print average number of features
-print('The average number of features is:'
-    +f'\n server images: {int(n_server_desc / n_server_imgs)}'
-    +f'\n client images: {int(n_client_desc / n_client_imgs)}'
-)
+    # %% Building the Vocabulary Tree using b = 4 and depth = 3
+    perc_descr = 1.0
+    HI_ob = HI(b, depth)
+    HI_ob.build_tree(data=get_desc_list(server_obj_desc))
 
-# %% Building the Vocabulary Tree using b = 4 and depth = 3
-b = 4
-depth = 3
+    # %% Compute TFIDF weights 
+    HI_ob.get_server_TFIDF_weights(server_obj_desc)
 
-perc_descr = 1.0
-HI_ob = HI(b, depth)
-HI_ob.build_tree(data=get_desc_list(server_obj_desc))
+    # %% Querying and recall score
+    top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc_descr, sim=sim)
+    top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc_descr, sim=sim)
 
-# %% Compute TFIDF weights 
-HI_ob.get_server_TFIDF_weights(server_obj_desc)
+    return top_1_recall, top_5_recall
 
-# %% Querying and recall score
-top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc_descr, sim=sim)
-top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc_descr, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} descriptors ({perc_descr * 100}% of them)')
-
-# %% Building the Vocabulary Tree using b=4 and depth=5
-b = 4
-depth = 5
-perc_descr = 1.0
-HI_ob = HI(b, depth)
-HI_ob.build_tree(data=get_desc_list(server_obj_desc))
-
-# Compute TFIDF weights 
-HI_ob.get_server_TFIDF_weights(server_obj_desc)
-
-# Querying and recall score
-top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc_descr, sim=sim)
-top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc_descr, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-
-# %% Building the Vocabulary Tree using b=5 and depth=7
-depth = 7
-b = 5
-HI_ob = HI(b, depth)
-HI_ob.build_tree(data=get_desc_list(server_obj_desc))
-
-# Compute TFIDF weights 
-HI_ob.get_server_TFIDF_weights(server_obj_desc)
-
-# Querying and recall score
-top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=1.0, sim=sim)
-top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=1.0, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc_descr * 100}% of desc per query')
-
-top_1_recall_90_perc = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=0.9, sim=sim)
-top_1_recall_70_perc = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=0.7, sim=sim)
-top_1_recall_50_perc = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=0.5, sim=sim)
-
-top_5_recall_90_perc = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=0.9, sim=sim)
-top_5_recall_70_perc = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=0.7, sim=sim)
-top_5_recall_50_perc = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=0.5, sim=sim)
-
-print(f'Top-1 recall rate: {top_1_recall_90_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
-print(f'Top-1 recall rate: {top_1_recall_70_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
-print(f'Top-1 recall rate: {top_1_recall_50_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
-
-print(f'Top-5 recall rate: {top_5_recall_90_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 90% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall_70_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 70% of desc per query')
-print(f'Top-5 recall rate: {top_5_recall_50_perc} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, 50% of desc per query')
-
-# %%
+if __name__ == '__main__':
+    marcel_plots()
