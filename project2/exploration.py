@@ -248,8 +248,8 @@ def tree_recall(
                 top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc, sim=sim)
                 top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc, sim=sim)
 
-                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}')
-                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}')
+                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
+                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
 
 
 
