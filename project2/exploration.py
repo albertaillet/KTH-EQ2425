@@ -185,15 +185,19 @@ class HI:
         return recall_t / len(obj_desc_list)
 
     @staticmethod
-    def l1(x: ndarray, y: ndarray) -> float:
-        return np.sum(np.abs(x - y), axis=0)
+    def l1(x: ndarray, y: ndarray) -> ndarray:
+        return HI.ln(x, y, 1)
     
     @staticmethod
-    def l2(x: ndarray, y: ndarray) -> float:
-        return np.linalg.norm(x - y, axis=0)
+    def l2(x: ndarray, y: ndarray) -> ndarray:
+        return HI.ln(x, y, 2)
+
+    @staticmethod
+    def ln(x: ndarray, y: ndarray, n: int) -> ndarray:
+        return np.linalg.norm((x / np.linalg.norm(x, ord=n, axis=0)) - (y / np.linalg.norm(y, ord=n, axis=0)), ord=n, axis=0)
     
     @staticmethod
-    def cosine(x: ndarray, y: ndarray) -> float:
+    def cosine(x: ndarray, y: ndarray) -> ndarray:
         return np.tensordot(x, y, ([0],[0])) / (np.linalg.norm(x, axis=0) * np.linalg.norm(y, axis=0))
 
     def get_server_TFIDF_weights(self, server_object_desc):
@@ -215,7 +219,7 @@ class HI:
         
         tf = vis_words_count / np.sum(vis_words_count, axis=0, keepdims=True)  # shape (n_vis_words, n_objects)
 
-        idf = np.log(n_objects / (1e-3 + np.sum(np.array(vis_words_count, dtype=bool), axis=1, keepdims=True)))  # shape (n_vis_words, 1)
+        idf = np.log2(n_objects / (1e-3 + np.sum(np.array(vis_words_count, dtype=bool), axis=1, keepdims=True)))  # shape (n_vis_words, 1)
         
         weights = tf * idf  # shape (n_vis_words, n_objects)
 
@@ -244,11 +248,11 @@ def tree_recall(
                 top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc, sim=sim)
                 top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc, sim=sim)
 
-                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc * 100}% of desc per query, number of components = {n_comp}')
-                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {n_server_desc} training descriptors, {perc * 100}% of desc per query, number of components = {n_comp}')
+                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}')
+                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}')
 
 
-    
+
 # %% Data loading and feature extraction
 
 # Load client and server images
@@ -268,9 +272,11 @@ sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contra
 
 # %% Extract descriptor for client images
 client_obj_desc, n_client_desc, n_client_imgs = extract_desc(client_object_imgs)
+print(f'Number of client descriptors: {n_client_desc}, number of client images: {n_client_imgs}')
 
 # %% Extract descriptor for server images
 server_obj_desc, n_server_desc, n_server_imgs = extract_desc(server_object_imgs)
+print(f'Number of server descriptors: {n_server_desc}, number of server images: {n_server_imgs}')
 
 # %% Print average number of features
 print('The average number of features is:'
@@ -279,37 +285,51 @@ print('The average number of features is:'
 )
 
 # %% Save descriptors as pickle files
-# with open(f'{OUT_FOLDER}/client_desc.pkl', 'wb') as f:
-#     pickle.dump(client_obj_desc, f)
+with open(f'{OUT_FOLDER}/client_desc.pkl', 'wb') as f:
+    pickle.dump(client_obj_desc, f)
 
-# with open(f'{OUT_FOLDER}/server_desc.pkl', 'wb') as f:
-#     pickle.dump(server_obj_desc, f)
+with open(f'{OUT_FOLDER}/server_desc.pkl', 'wb') as f:
+    pickle.dump(server_obj_desc, f)
 
-# # %% Load descriptors from pickle files
-# with open(f'{OUT_FOLDER}/client_desc.pkl', 'rb') as f:
-#     client_obj_desc = pickle.load(f)
+# %% Load descriptors from pickle files
+with open(f'{OUT_FOLDER}/client_desc.pkl', 'rb') as f:
+    client_obj_desc = pickle.load(f)
 
-# with open(f'{OUT_FOLDER}/server_desc.pkl', 'rb') as f:
-#     server_obj_desc = pickle.load(f)
+with open(f'{OUT_FOLDER}/server_desc.pkl', 'rb') as f:
+    server_obj_desc = pickle.load(f)
 
 # %% Building the Vocabulary Tree using b = 4 and depth = 3
 b = 4
 depth = 3
-n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
+tree_recall(server_obj_desc, client_obj_desc, b, depth, random_state=RANDOM_STATE)
 
 # %% Building the Vocabulary Tree using b=4 and depth=5
 b = 4
 depth = 5
+tree_recall(server_obj_desc, client_obj_desc, b, depth, random_state=RANDOM_STATE)
+
+# %% Building the Vocabulary Tree using b=5 and depth=7
+b = 5
+depth = 7
+perc_descr = [1.0, 0.9, 0.7, 0.5]
+sims = ['l1', 'l2', 'cos']
+
+tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr, random_state=RANDOM_STATE, sims=sims)
+
+# %% Building the Vocabulary Tree using b = 4 and depth = 3 using PCA
+b = 4
+depth = 3
 n_components = [0.8]
 tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
 
-# %% Building the Vocabulary Tree using b=5 and depth=7
-depth = 7
-b = 5
-perc_descr = [1.0, 0.9, 0.7, 0.5]
+# %% Building the Vocabulary Tree using b=4 and depth=5 using PCA
+b = 4
+depth = 5
 n_components = [0.8]
-sims = ['l1', 'l2', 'cos']
-
-tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr, n_components=n_components, random_state=RANDOM_STATE, sims=sims)
-
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
+# %% Building the Vocabulary Tree using b=5 and depth=7 using PCA
+b = 5
+depth = 7
+n_components = [0.8]
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
+# %%
