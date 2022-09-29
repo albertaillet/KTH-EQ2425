@@ -4,7 +4,6 @@ import pickle
 import numpy as np
 from glob import glob
 from tqdm import tqdm, trange
-from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
 # for typing
@@ -13,45 +12,68 @@ from typing import Union, List
 
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
-PLAY_FOLDER = 'playground2'
 RANDOM_STATE = 1
 
 #%% Functions
 
 def load_images(img_folder: str, max_n: int = 50) -> tuple:
-    '''Loads all the images from img folder and stores them into 2 separate lists (client and server)'''
+    '''Loads all the images from img folder and stores them into 3 separate lists (server, client and new_client)'''
     assert max_n <= 50, 'there is at most 50 images to load'
 
-    client = [
-        [cv2.imread(f'{img_folder}/client/obj{n}_t1.JPG')]
-        for n in trange(1, max_n+1, desc=f'Loading {max_n} client images')
-    ]
-    
     server = [
         [
             cv2.imread(img_path) for img_path in glob(f'{img_folder}/server/obj{n}_[0-9].JPG')
-        ] for n in trange(1, max_n+1, desc=f'Loading {max_n} server images')
+        ]
+        for n in trange(1, max_n+1, desc=f'Loading {max_n} server images')
     ]
-    return client, server
+
+    client = [
+        [
+            cv2.imread(f'{img_folder}/client/obj{n}_t1.JPG')
+        ]
+        for n in trange(1, max_n+1, desc=f'Loading {max_n} client images')
+    ]
+    
+
+    new_client = {
+        n-1 : [
+            cv2.imread(f'{img_folder}/new_client/obj{n}_t1.JPG')
+        ]
+        for n in tqdm([42, 43, 44], desc='Loading new client images')
+    }
+
+    return server, client, new_client
 
 
 def get_desc_list(obj_desc_list: list) -> ndarray:
-    '''
-    Returns a flattened list of all the descriptors in the obj_desc_list.
+    '''Returns a flattened list of all the descriptors in the obj_desc_list.
     :param desc: list containing all the descriptors for each object
     :return: flattened array of all the descriptors
     '''
     return np.array([desc for obj_desc in obj_desc_list for desc in obj_desc])
 
 
-def extract_desc(obj_imgs_list):
-    obj_desc_list = [[] for _ in obj_imgs_list]
+def extract_desc(obj_imgs_list: Union[list, dict], detector: cv2.xfeatures2d_SIFT):
+    '''Extracts the descriptors from the images in the list or dictionary of object images.
+    :param obj_imgs_list: list or dict of shape (n_objects, n_object_images, height, width, channels)
+    :param detector: SIFT detector object.
+    :return: list or dict of descriptors for each object, total number of descriptors, total number of images.
+    '''
+    if isinstance(obj_imgs_list, list):
+        obj_desc_list = [[] for _ in obj_imgs_list]
+        iterator = list(enumerate(obj_imgs_list))
+    elif isinstance(obj_imgs_list, dict):
+        obj_desc_list = {i: [] for i in obj_imgs_list.keys()}
+        iterator = obj_imgs_list.items()
+    else:
+        raise TypeError('obj_imgs_list must be a list or a dict')
+    
     n_desc = 0
     n_imgs = 0
 
-    for i, obj_imgs in tqdm(list(enumerate(obj_imgs_list))):
+    for i, obj_imgs in tqdm(iterator):
         for img in obj_imgs:
-            _, desc = sift.detectAndCompute(img, None)
+            _, desc = detector.detectAndCompute(img, None)
             obj_desc_list[i].extend(desc)
 
             n_imgs += 1
@@ -149,16 +171,24 @@ class HI:
         tf = vis_words / np.sum(vis_words)  # shape (n_vis_words, )
         return tf[:, None] # shape (n_vis_words, 1)
 
-    def recall_rate(self, obj_desc_list: list, topKbest: int = 1, perc_desc: float = 1.0, sim: str = 'l1') -> float:
+    def recall_rate(
+        self, 
+        obj_desc_list: Union[list, dict],
+        topKbest: int = 1,
+        perc_desc: float = 1.0,
+        sim: str = 'l1',
+    ) -> float:
         '''
         Returns the recall rate for the given parameters.
-        :param K: number of images to consider for the query
+        :param obj_desc_list: list or dictionary containing all the descriptors for each object
         :param topKbest: number of best predictions to consider for the recall rate
         :param perc_desc: percentage of descriptors to consider for the query
+        :param sim: the similarity function to use
         :return: recall rate
         '''
+        iterator = enumerate(obj_desc_list) if isinstance(obj_desc_list, list) else obj_desc_list.items()
         recall_t = 0
-        for object_index, object_descs in enumerate(obj_desc_list):
+        for object_index, object_descs in iterator:
             perc_index = int(perc_desc * len(object_descs))
             tf = self.get_query_tf_vector(object_descs[:perc_index])
 
@@ -245,7 +275,7 @@ def tree_recall(
 # %% Data loading and feature extraction
 
 # Load client and server images
-client_object_imgs, server_object_imgs = load_images(DATA_FOLDER, max_n=50)
+server_object_imgs, client_object_imgs, new_client_object_imgs = load_images(DATA_FOLDER, max_n=50)
 
 # Notice that for the server images:
 # - object 26 and 38 only have 2 images
@@ -259,13 +289,17 @@ edgeT = 0.2
 contrastT = 0.1
 sift = cv2.xfeatures2d.SIFT_create(edgeThreshold=edgeT, contrastThreshold=contrastT)
 
+# %% Extract descriptor for server images
+server_obj_desc, n_server_desc, n_server_imgs = extract_desc(server_object_imgs, sift)
+print(f'Number of server descriptors: {n_server_desc}, number of server images: {n_server_imgs}')
+
 # %% Extract descriptor for client images
-client_obj_desc, n_client_desc, n_client_imgs = extract_desc(client_object_imgs)
+client_obj_desc, n_client_desc, n_client_imgs = extract_desc(client_object_imgs, sift)
 print(f'Number of client descriptors: {n_client_desc}, number of client images: {n_client_imgs}')
 
-# %% Extract descriptor for server images
-server_obj_desc, n_server_desc, n_server_imgs = extract_desc(server_object_imgs)
-print(f'Number of server descriptors: {n_server_desc}, number of server images: {n_server_imgs}')
+# %% Extract descriptor for new client images
+new_client_obj_desc, n_new_client_desc, n_new_client_imgs = extract_desc(new_client_object_imgs, sift)
+print(f'Number of new client descriptors: {n_new_client_desc}, number of new client images: {n_new_client_imgs}')
 
 # %% Print average number of features
 print('The average number of features is:'
@@ -274,18 +308,24 @@ print('The average number of features is:'
 )
 
 # %% Save descriptors as pickle files
-with open(f'{OUT_FOLDER}/client_desc.pkl', 'wb') as f:
-    pickle.dump(client_obj_desc, f)
-
 with open(f'{OUT_FOLDER}/server_desc.pkl', 'wb') as f:
     pickle.dump(server_obj_desc, f)
 
+with open(f'{OUT_FOLDER}/client_desc.pkl', 'wb') as f:
+    pickle.dump(client_obj_desc, f)
+
+with open(f'{OUT_FOLDER}/new_client_desc.pkl', 'wb') as f:
+    pickle.dump(new_client_obj_desc, f)
+
 # %% Load descriptors from pickle files
+with open(f'{OUT_FOLDER}/server_desc.pkl', 'rb') as f:
+    server_obj_desc = pickle.load(f)
+
 with open(f'{OUT_FOLDER}/client_desc.pkl', 'rb') as f:
     client_obj_desc = pickle.load(f)
 
-with open(f'{OUT_FOLDER}/server_desc.pkl', 'rb') as f:
-    server_obj_desc = pickle.load(f)
+with open(f'{OUT_FOLDER}/new_client_desc.pkl', 'rb') as f:
+    new_client_obj_desc = pickle.load(f)
 
 # %% Building the Vocabulary Tree using b = 4 and depth = 3
 b = 4
@@ -301,9 +341,8 @@ tree_recall(server_obj_desc, client_obj_desc, b, depth, random_state=RANDOM_STAT
 b = 5
 depth = 7
 perc_descr = [1.0, 0.9, 0.7, 0.5]
-sims = ['l1', 'l2', 'cos']
 
-tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr, random_state=RANDOM_STATE, sims=sims)
+tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr, random_state=RANDOM_STATE)
 
 # %% Building the Vocabulary Tree using b = 4 and depth = 3 using PCA
 b = 4
