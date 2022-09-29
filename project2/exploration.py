@@ -166,18 +166,15 @@ class HI:
             server_tfidf = self.weights  # shape (n_vis_words, n_objects)
             
             if sim == 'l1':
-                scores = HI.l1(query_tfidf, server_tfidf)
+                scores = HI.l_n(query_tfidf, server_tfidf, 1)
             elif sim == 'l2':
-                scores = HI.l2(query_tfidf, server_tfidf)
+                scores = HI.l_n(query_tfidf, server_tfidf, 2)
             elif sim == 'cos':
                 scores = HI.cosine(query_tfidf, server_tfidf)
             else:
                 raise ValueError('Invalid similarity function')
             
-            if sim == 'cos':
-                preds = np.argsort(scores)[::-1][:topKbest].tolist()
-            else:
-                preds = np.argsort(scores)[:topKbest].tolist()
+            preds = np.argsort(scores)[:topKbest].tolist()
 
             if object_index in preds:
                 recall_t += 1
@@ -185,15 +182,7 @@ class HI:
         return recall_t / len(obj_desc_list)
 
     @staticmethod
-    def l1(x: ndarray, y: ndarray) -> ndarray:
-        return HI.ln(x, y, 1)
-    
-    @staticmethod
-    def l2(x: ndarray, y: ndarray) -> ndarray:
-        return HI.ln(x, y, 2)
-
-    @staticmethod
-    def ln(x: ndarray, y: ndarray, n: int) -> ndarray:
+    def l_n(x: ndarray, y: ndarray, n: int) -> ndarray:
         return np.linalg.norm((x / np.linalg.norm(x, ord=n, axis=0)) - (y / np.linalg.norm(y, ord=n, axis=0)), ord=n, axis=0)
     
     @staticmethod
