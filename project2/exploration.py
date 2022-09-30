@@ -8,7 +8,7 @@ from sklearn.decomposition import PCA
 
 # for typing
 from numpy import ndarray
-from typing import Union, List
+from typing import Union, List, Dict, Optional
 
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
@@ -104,45 +104,35 @@ class HI:
         Builds a hierarchical tree using the given keypoints.
         :return: hierarchical tree as a dictionary
         '''
-        tree_dict = {i: {} for i in range(b)}
-
-        # K means clustering using cv2
+        cv2.setRNGSeed(self.random_state)
         _, labels, centroids = cv2.kmeans(data, b, None, (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0), 10, cv2.KMEANS_RANDOM_CENTERS)
 
-        # KM = KMeans(
-        #     n_clusters=b, 
-        #     random_state=self.random_state, 
-        #     n_init=4
-        # )
-        # KM.fit(X=data)
-
-        # centroids = KM.cluster_centers_
-        # labels = KM.labels_
+        subtree = [{} for _ in range(b)]
 
         for centroid_index, centroid in enumerate(centroids):
-            tree_dict[centroid_index]['centroid'] = centroid
+            subtree[centroid_index]['centroid'] = centroid
             chosen_idxs = np.where(labels == centroid_index)[0]
 
             if len(chosen_idxs) <= b or self.max_depth == depth + 1:
-                tree_dict[centroid_index]['is_leaf'] = True
-                tree_dict[centroid_index]['vis_word_index'] = self.counter
+                subtree[centroid_index]['is_leaf'] = True
+                subtree[centroid_index]['vis_word_index'] = self.counter
                 self.counter += 1
                 print(f'Leaf {self.counter}/{np.power(b, self.max_depth)}', end='\r')
             else:
-                tree_dict[centroid_index]['is_leaf'] = False
+                subtree[centroid_index]['is_leaf'] = False
                 selected_pts = data[chosen_idxs]
-                tree_dict[centroid_index]['subtree'] = self.hi_kmeans(selected_pts, b, depth + 1)
+                subtree[centroid_index]['subtree'] = self.hi_kmeans(selected_pts, b, depth + 1)
                 
-        return tree_dict
+        return subtree
 
-    def tree_pass(self, query_desc: ndarray, tree: dict) -> int:
+    def tree_pass(self, query_desc: ndarray, tree: list, transform: bool=False) -> int:
         '''
         Passes down the tree using a certain descriptor vector and returns the key of the leaf.
         :param query_desc: vector containing a descriptor for an img
         :param tree: hierarchical tree you want to descend from the root till a leaf node
         :return: index of the visual word the descriptor belongs to
         '''
-        if self.n_components != 0 and query_desc.shape[0] == 128:
+        if self.n_components != 0 and transform:
             query_desc = self.pca.transform(query_desc.reshape(1, -1)).flatten()
 
         best_dist = +np.inf
@@ -167,7 +157,7 @@ class HI:
         # sift feature extraction
         vis_words = np.zeros(self.counter)
         for desc in descs:
-            vis_words[self.tree_pass(desc, self.tree)] += 1
+            vis_words[self.tree_pass(desc, self.tree, True)] += 1
         tf = vis_words / np.sum(vis_words)  # shape (n_vis_words, )
         return tf[:, None] # shape (n_vis_words, 1)
 
@@ -233,7 +223,7 @@ class HI:
 
         for obj_index, obj_desc in enumerate(server_object_desc):
             for desc in obj_desc:
-                desc_vis_word_index = self.tree_pass(desc, self.tree)
+                desc_vis_word_index = self.tree_pass(desc, self.tree, True)
                 vis_words_count[desc_vis_word_index][obj_index] += 1
         
         tf = vis_words_count / np.sum(vis_words_count, axis=0, keepdims=True)  # shape (n_vis_words, n_objects)
@@ -246,7 +236,7 @@ class HI:
 
 def tree_recall(
     server_obj_desc: List[List[ndarray]], 
-    client_obj_desc: List[List[ndarray]], 
+    client_obj_desc: Union[List[List[ndarray]], Dict[int, List[ndarray]]], 
     b: int, 
     depth: int,
     perc_descr: List[float] = [1], 
@@ -258,7 +248,7 @@ def tree_recall(
     for n_comp in n_components:
         HI_ob.build_tree(data=get_desc_list(server_obj_desc), n_components=n_comp)
 
-        # Compute TFIDF weights 
+        # Compute TFIDF weights
         HI_ob.get_server_TFIDF_weights(server_obj_desc)
 
         for perc in perc_descr:
