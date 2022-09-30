@@ -80,6 +80,27 @@ def extract_desc(obj_imgs_list: Union[list, dict], detector: cv2.xfeatures2d_SIF
             n_desc += len(desc)
     return obj_desc_list, n_desc, n_imgs
 
+class Node:
+    def __init__(
+        self, 
+        centroid: ndarray, 
+        is_leaf: bool=False, 
+        vis_word_index: Optional[int]=None,
+        subtree: Optional[list]=None
+    ) -> None:
+        self.is_leaf = is_leaf
+        self.centroid = centroid
+        self.vis_word_index = vis_word_index
+        self.subtree = subtree
+    
+    def __str__(self) -> str:
+        return (
+            f'Node: centroid={self.centroid.shape}, '
+            f'is_leaf={self.is_leaf}, '
+            f'vis_word_index={self.vis_word_index}, '
+            f'subtree={self.subtree}'
+        )
+
 
 class HI:
     def __init__(self, b: int, depth: int, random_state: int=RANDOM_STATE) -> None:
@@ -101,27 +122,29 @@ class HI:
 
     def hi_kmeans(self, data: ndarray, b: int, depth: int = 0)  -> dict:
         '''
-        Builds a hierarchical tree using the given keypoints.
+        Builds a hierarchical tree using the given keypoints using K means clustering with b centers.
         :return: hierarchical tree as a dictionary
         '''
         cv2.setRNGSeed(self.random_state)
         _, labels, centroids = cv2.kmeans(data, b, None, (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0), 10, cv2.KMEANS_RANDOM_CENTERS)
 
-        subtree = [{} for _ in range(b)]
-
+        subtree = [None for _ in range(b)]
         for centroid_index, centroid in enumerate(centroids):
-            subtree[centroid_index]['centroid'] = centroid
             chosen_idxs = np.where(labels == centroid_index)[0]
 
             if len(chosen_idxs) <= b or self.max_depth == depth + 1:
-                subtree[centroid_index]['is_leaf'] = True
-                subtree[centroid_index]['vis_word_index'] = self.counter
+                subtree[centroid_index] = Node(
+                    centroid=centroid,
+                    is_leaf=True, 
+                    vis_word_index=self.counter
+                )
                 self.counter += 1
                 print(f'Leaf {self.counter}/{np.power(b, self.max_depth)}', end='\r')
             else:
-                subtree[centroid_index]['is_leaf'] = False
-                selected_pts = data[chosen_idxs]
-                subtree[centroid_index]['subtree'] = self.hi_kmeans(selected_pts, b, depth + 1)
+                subtree[centroid_index] = Node(
+                    centroid=centroid,
+                    subtree=self.hi_kmeans(data[chosen_idxs], b, depth + 1)
+                )
                 
         return subtree
 
@@ -136,16 +159,16 @@ class HI:
             query_desc = self.pca.transform(query_desc.reshape(1, -1)).flatten()
 
         best_dist = +np.inf
-        best_cluster_index = -1
-        
-        for cluster_index in range(self.b):
-            dist = np.linalg.norm(query_desc - tree[cluster_index]['centroid'])
+        for node in tree:
+            dist = np.linalg.norm(query_desc - node.centroid)
             if dist < best_dist:
                 best_dist = dist
-                best_cluster_index = cluster_index      
-        if tree[best_cluster_index]['is_leaf']:
-            return tree[best_cluster_index]['vis_word_index']
-        return self.tree_pass(query_desc, tree[best_cluster_index]['subtree'])
+                best_node = node
+        
+        if best_node.is_leaf:
+            return best_node.vis_word_index
+        
+        return self.tree_pass(query_desc, best_node.subtree)
 
     def get_query_tf_vector(self, descs: ndarray) -> ndarray:
         '''
