@@ -388,7 +388,6 @@ with open(f'{OUT_FOLDER}/new_client_desc.pkl', 'rb') as f:
 
 # %% Testing different configurations
 confiurations = [
-
     # base experiment
     {'b': 4, 'depth': 3},
     {'b': 4, 'depth': 5},
@@ -414,8 +413,44 @@ confiurations = [
     {'b': 5, 'depth': 5},
     {'b': 6, 'depth': 5},
     {'b': 7, 'depth': 5},
+
+    # all other combinations
+    {'b': 2, 'depth': 2},
+    {'b': 2, 'depth': 3},
+    {'b': 2, 'depth': 4},
+    {'b': 2, 'depth': 6},
+    {'b': 2, 'depth': 7},
+    {'b': 2, 'depth': 8},
+    {'b': 2, 'depth': 9},
+    {'b': 3, 'depth': 2},
+    {'b': 3, 'depth': 3},
+    {'b': 3, 'depth': 4},
+    {'b': 3, 'depth': 6},
+    {'b': 3, 'depth': 7},
+    {'b': 3, 'depth': 8},
+    {'b': 3, 'depth': 9},
+    {'b': 5, 'depth': 2},
+    {'b': 5, 'depth': 3},
+    {'b': 5, 'depth': 4},
+    {'b': 5, 'depth': 6},
+    {'b': 5, 'depth': 8},
+    {'b': 5, 'depth': 9},
+    {'b': 6, 'depth': 2},
+    {'b': 6, 'depth': 3},
+    {'b': 6, 'depth': 4},
+    {'b': 6, 'depth': 6},
+    {'b': 6, 'depth': 7},
+    {'b': 6, 'depth': 8},
+    {'b': 6, 'depth': 9},
+    {'b': 7, 'depth': 2},
+    {'b': 7, 'depth': 3},
+    {'b': 7, 'depth': 4},
+    {'b': 7, 'depth': 6},
+    {'b': 7, 'depth': 7},
+    {'b': 7, 'depth': 8},
+    {'b': 7, 'depth': 9}
 ]
-# %%
+# %% 
 results = []
 for conf in confiurations:
     results.extend(evaluate_performance(server_obj_desc, client_obj_desc, **conf))
