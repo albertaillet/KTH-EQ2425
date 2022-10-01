@@ -388,14 +388,34 @@ with open(f'{OUT_FOLDER}/new_client_desc.pkl', 'rb') as f:
 
 # %% Testing different configurations
 confiurations = [
+
+    # base experiment
     {'b': 4, 'depth': 3},
     {'b': 4, 'depth': 5},
     {'b': 5, 'depth': 7},
+
+    # using PCA
     {'b': 4, 'depth': 3, 'n_components': 0.8},
     {'b': 4, 'depth': 5, 'n_components': 0.8},
     {'b': 5, 'depth': 7, 'n_components': 0.8},
-]
 
+    # different depth values
+    {'b': 4, 'depth': 2},
+    {'b': 4, 'depth': 4},
+    {'b': 4, 'depth': 6},
+    {'b': 4, 'depth': 7},
+    {'b': 4, 'depth': 8},
+    {'b': 4, 'depth': 9},
+
+    # different b values
+    {'b': 2, 'depth': 5},
+    {'b': 3, 'depth': 5},
+    {'b': 4, 'depth': 5},
+    {'b': 5, 'depth': 5},
+    {'b': 6, 'depth': 5},
+    {'b': 7, 'depth': 5},
+]
+# %%
 results = []
 for conf in confiurations:
     results.extend(evaluate_performance(server_obj_desc, client_obj_desc, **conf))
@@ -403,3 +423,7 @@ for conf in confiurations:
 # %% Save results as json file
 with open(f'{OUT_FOLDER}/results.json', 'w') as f:
     json.dump(results, f, indent=4)
+
+# %% Load results from json file
+with open(f'{OUT_FOLDER}/results.json', 'r') as f:
+    results = json.load(f)
