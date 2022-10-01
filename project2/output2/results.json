@@ -6,7 +6,22 @@
         "n_components": 1.0,
         "similarity": "l1",
         "top_1_recall": 0.52,
-        "top_5_recall": 0.76
+        "top_5_recall": 0.76,
+        "top_k_recall": [
+            0.52,
+            0.68,
+            0.7,
+            0.74,
+            0.76,
+            0.76,
+            0.76,
+            0.82,
+            0.82,
+            0.82
+        ],
+        "n_vis_words": 16,
+        "n_images": 50,
+        "random_seed": 1
     },
     {
         "b": 4,
@@ -15,7 +30,22 @@
         "n_components": 1.0,
         "similarity": "l1",
         "top_1_recall": 0.64,
-        "top_5_recall": 0.76
+        "top_5_recall": 0.76,
+        "top_k_recall": [
+            0.64,
+            0.72,
+            0.76,
+            0.76,
+            0.76,
+            0.76,
+            0.78,
+            0.78,
+            0.82,
+            0.86
+        ],
+        "n_vis_words": 256,
+        "n_images": 50,
+        "random_seed": 1
     },
     {
         "b": 5,
@@ -24,7 +54,22 @@
         "n_components": 1.0,
         "similarity": "l1",
         "top_1_recall": 0.8,
-        "top_5_recall": 0.88
+        "top_5_recall": 0.88,
+        "top_k_recall": [
+            0.8,
+            0.84,
+            0.86,
+            0.86,
+            0.88,
+            0.88,
+            0.88,
+            0.88,
+            0.88,
+            0.88
+        ],
+        "n_vis_words": 15585,
+        "n_images": 50,
+        "random_seed": 1
     },
     {
         "b": 4,
@@ -33,7 +78,22 @@
         "n_components": 0.8,
         "similarity": "l1",
         "top_1_recall": 0.58,
-        "top_5_recall": 0.76
+        "top_5_recall": 0.76,
+        "top_k_recall": [
+            0.58,
+            0.68,
+            0.74,
+            0.74,
+            0.76,
+            0.78,
+            0.78,
+            0.8,
+            0.82,
+            0.84
+        ],
+        "n_vis_words": 16,
+        "n_images": 50,
+        "random_seed": 1
     },
     {
         "b": 4,
@@ -42,7 +102,22 @@
         "n_components": 0.8,
         "similarity": "l1",
         "top_1_recall": 0.64,
-        "top_5_recall": 0.76
+        "top_5_recall": 0.76,
+        "top_k_recall": [
+            0.64,
+            0.72,
+            0.74,
+            0.74,
+            0.76,
+            0.78,
+            0.78,
+            0.78,
+            0.8,
+            0.8
+        ],
+        "n_vis_words": 256,
+        "n_images": 50,
+        "random_seed": 1
     },
     {
         "b": 5,
@@ -51,6 +126,21 @@
         "n_components": 0.8,
         "similarity": "l1",
         "top_1_recall": 0.8,
-        "top_5_recall": 0.86
+        "top_5_recall": 0.86,
+        "top_k_recall": [
+            0.8,
+            0.84,
+            0.86,
+            0.86,
+            0.86,
+            0.86,
+            0.86,
+            0.86,
+            0.88,
+            0.88
+        ],
+        "n_vis_words": 15621,
+        "n_images": 50,
+        "random_seed": 1
     }
 ]
