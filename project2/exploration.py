@@ -1,5 +1,6 @@
 # %% Project imports and functions
 import cv2 
+import json
 import pickle
 import numpy as np
 from glob import glob
@@ -107,9 +108,9 @@ class HI:
         self.max_depth = depth
         self.random_state = random_state
 
-    def build_tree(self, data: ndarray, n_components: Union[int, float]=0) -> None:
+    def build_tree(self, data: ndarray, n_components: float=1) -> None:
         self.n_components = n_components
-        if n_components != 0:
+        if n_components != 1:
             self.pca = PCA(n_components)
             reduced_data = self.pca.fit_transform(data)
         else:
@@ -153,7 +154,7 @@ class HI:
         :param tree: hierarchical tree you want to descend from the root till a leaf node
         :return: index of the visual word the descriptor belongs to
         '''
-        if self.n_components != 0 and transform:
+        if self.n_components != 1 and transform:
             query_desc = self.pca.transform(query_desc.reshape(1, -1)).flatten()
 
         best_dist = +np.inf
@@ -276,34 +277,58 @@ class HI:
             ')'
         )
 
-def tree_recall(
+def evaluate_performance(
     server_obj_desc: List[List[ndarray]], 
     client_obj_desc: Union[List[List[ndarray]], Dict[int, List[ndarray]]], 
     b: int, 
     depth: int,
     perc_descr: List[float] = [1], 
-    n_components: List[float] = [0], 
-    sims: List[str] = ['l1'],
+    n_components: float = 1.0, 
+    similarities: List[str] = ['l1'],
     random_state: int = 1
-) -> None:
+) -> List[Dict[str, Union[str, int, float]]]:
     HI_ob = HI(b, depth, random_state)
-    for n_comp in n_components:
-        HI_ob.build_tree(data=get_desc_list(server_obj_desc), n_components=n_comp)
-        print(HI_ob.get_newick())
+    HI_ob.build_tree(get_desc_list(server_obj_desc), n_components)
 
-        # Compute TFIDF weights
-        HI_ob.get_server_TFIDF_weights(server_obj_desc)
+    # Compute TFIDF weights
+    HI_ob.get_server_TFIDF_weights(server_obj_desc)
 
-        for perc in perc_descr:
-            for sim in sims:
-                # Querying and recall score
-                top_k_recall = HI_ob.recall_rate(client_obj_desc, perc_desc=perc, sim=sim)
-                
-                top_1_recall = top_k_recall[0]
-                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
-                if len(top_k_recall) >= 5:
-                    top_5_recall = top_k_recall[4]
-                    print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
+    results = []
+
+    for perc in perc_descr:
+        for sim in similarities:
+            # Querying and recall score
+            top_k_recall = HI_ob.recall_rate(client_obj_desc, perc_desc=perc, sim=sim)
+            
+            top_1_recall = top_k_recall[0]
+            top_5_recall = top_k_recall[4]
+
+            print(
+                f'Top-1 recall rate: {top_1_recall}, '
+                f'Top-5 recall rate: {top_1_recall}, '
+                f'using b = {b} and depth = {depth}, '
+                f'{len(client_obj_desc)} images, '
+                f'{HI_ob.counter} visual words, '
+                f'{perc * 100}% of desc per query, '
+                f'{n_components * 100}% percent of explained variance in PCA, '
+                f'{sim} similarity function'
+            )
+
+            results.append({
+                'b': b,
+                'depth': depth,
+                'perc': perc,
+                'n_components': n_components,
+                'similarity': sim,
+                'top_1_recall': top_1_recall,
+                'top_5_recall': top_5_recall,
+                'top_k_recall': top_k_recall[:10].tolist(),
+                'n_vis_words': HI_ob.counter,
+                'n_images': len(client_obj_desc),
+                'random_seed': random_state,
+            })
+
+    return results
 
 
 # %% Data loading and feature extraction
@@ -335,8 +360,8 @@ print(f'Number of client descriptors: {n_client_desc}, number of client images: 
 new_client_obj_desc, n_new_client_desc, n_new_client_imgs = extract_desc(new_client_object_imgs, sift)
 print(f'Number of new client descriptors: {n_new_client_desc}, number of new client images: {n_new_client_imgs}')
 
-# %% Print average number of features
-print('The average number of features is:'
+# %% Print average number of descriptors per image
+print('The average number of descriptors per image is:'
     +f'\n server images: {int(n_server_desc / n_server_imgs)}'
     +f'\n client images: {int(n_client_desc / n_client_imgs)}'
 )
@@ -361,35 +386,20 @@ with open(f'{OUT_FOLDER}/client_desc.pkl', 'rb') as f:
 with open(f'{OUT_FOLDER}/new_client_desc.pkl', 'rb') as f:
     new_client_obj_desc = pickle.load(f)
 
-# %% Building the Vocabulary Tree using b = 4 and depth = 3
-b = 4
-depth = 3
-tree = tree_recall(server_obj_desc, client_obj_desc, b, depth)
+# %% Testing different configurations
+confiurations = [
+    {'b': 4, 'depth': 3},
+    {'b': 4, 'depth': 5},
+    {'b': 5, 'depth': 7},
+    {'b': 4, 'depth': 3, 'n_components': 0.8},
+    {'b': 4, 'depth': 5, 'n_components': 0.8},
+    {'b': 5, 'depth': 7, 'n_components': 0.8},
+]
 
-# %% Building the Vocabulary Tree using b=4 and depth=5
-b = 4
-depth = 4
-tree_recall(server_obj_desc, client_obj_desc, b, depth)
+results = []
+for conf in confiurations:
+    results.extend(evaluate_performance(server_obj_desc, client_obj_desc, **conf))
 
-# %% Building the Vocabulary Tree using b=5 and depth=7
-b = 5
-depth = 7
-perc_descr = [1.0, 0.9, 0.7, 0.5]
-
-tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr)
-# %% Building the Vocabulary Tree using b = 4 and depth = 3 using PCA
-b = 4
-depth = 3
-n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
-# %% Building the Vocabulary Tree using b=4 and depth=5 using PCA
-b = 4
-depth = 5
-n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
-# %% Building the Vocabulary Tree using b=5 and depth=7 using PCA
-b = 5
-depth = 7
-n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
-# %%
+# %% Save results as json file
+with open(f'{OUT_FOLDER}/results.json', 'w') as f:
+    json.dump(results, f, indent=4)
