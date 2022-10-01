@@ -12,7 +12,6 @@ from typing import Union, List, Dict, Optional
 
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
-RANDOM_STATE = 1
 
 #%% Functions
 
@@ -33,7 +32,6 @@ def load_images(img_folder: str, max_n: int = 50) -> tuple:
         ]
         for n in trange(1, max_n+1, desc=f'Loading {max_n} client images')
     ]
-    
 
     new_client = {
         n-1 : [
@@ -103,7 +101,7 @@ class Node:
 
 
 class HI:
-    def __init__(self, b: int, depth: int, random_state: int=RANDOM_STATE) -> None:
+    def __init__(self, b: int, depth: int, random_state: int) -> None:
         self.counter = 0
         self.b = b
         self.max_depth = depth
@@ -118,9 +116,9 @@ class HI:
             reduced_data = data
         
         self.counter = 0
-        self.tree = self.hi_kmeans(reduced_data, self.b)
+        self.tree = self.hi_kmeans(reduced_data, self.b, 1)
 
-    def hi_kmeans(self, data: ndarray, b: int, depth: int = 0)  -> dict:
+    def hi_kmeans(self, data: ndarray, b: int, depth: int)  -> dict:
         '''
         Builds a hierarchical tree using the given keypoints using K means clustering with b centers.
         :return: hierarchical tree as a dictionary
@@ -139,7 +137,7 @@ class HI:
                     vis_word_index=self.counter
                 )
                 self.counter += 1
-                print(f'Leaf {self.counter}/{np.power(b, self.max_depth)}', end='\r')
+                print(f'Leaf {self.counter}/{b ** (self.max_depth-1)}', end='\r')
             else:
                 subtree[centroid_index] = Node(
                     centroid=centroid,
@@ -186,7 +184,7 @@ class HI:
 
     def recall_rate(
         self, 
-        obj_desc_list: Union[list, dict],
+        obj_desc_list: Union[List[List[ndarray]], Dict[int, List[ndarray]]],
         topKbest: int = 1,
         perc_desc: float = 1.0,
         sim: str = 'l1',
@@ -256,6 +254,24 @@ class HI:
         weights = tf * idf  # shape (n_vis_words, n_objects)
 
         self.weights, self.idf = weights, idf
+    
+    def get_newick(self):
+        '''
+        Returns the newick representation of the tree.
+        :return: newick representation of the tree
+        '''
+        return '(' + HI.get_newick_recur(self.tree) + ');'
+    
+    @staticmethod
+    def get_newick_recur(subtree):
+        return (
+            '(' +
+            ','.join(
+                str(n.vis_word_index) if n.is_leaf else HI.get_newick_recur(n.subtree)
+                for n in subtree
+            ) +
+            ')'
+        )
 
 def tree_recall(
     server_obj_desc: List[List[ndarray]], 
@@ -265,11 +281,12 @@ def tree_recall(
     perc_descr: List[float] = [1], 
     n_components: List[float] = [0], 
     sims: List[str] = ['l1'],
-    random_state = 42
+    random_state: int = 1
 ) -> None:
     HI_ob = HI(b, depth, random_state)
     for n_comp in n_components:
         HI_ob.build_tree(data=get_desc_list(server_obj_desc), n_components=n_comp)
+        print(HI_ob.get_newick())
 
         # Compute TFIDF weights
         HI_ob.get_server_TFIDF_weights(server_obj_desc)
@@ -280,9 +297,8 @@ def tree_recall(
                 top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc, sim=sim)
                 top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc, sim=sim)
 
-                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
-                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {np.power(b, depth)} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
-
+                print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
+                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
 
 
 # %% Data loading and feature extraction
@@ -343,34 +359,32 @@ with open(f'{OUT_FOLDER}/new_client_desc.pkl', 'rb') as f:
 # %% Building the Vocabulary Tree using b = 4 and depth = 3
 b = 4
 depth = 3
-tree_recall(server_obj_desc, client_obj_desc, b, depth, random_state=RANDOM_STATE)
+tree = tree_recall(server_obj_desc, client_obj_desc, b, depth)
 
 # %% Building the Vocabulary Tree using b=4 and depth=5
 b = 4
-depth = 5
-tree_recall(server_obj_desc, client_obj_desc, b, depth, random_state=RANDOM_STATE)
+depth = 4
+tree_recall(server_obj_desc, client_obj_desc, b, depth)
 
 # %% Building the Vocabulary Tree using b=5 and depth=7
 b = 5
 depth = 7
 perc_descr = [1.0, 0.9, 0.7, 0.5]
 
-tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr, random_state=RANDOM_STATE)
-
+tree_recall(server_obj_desc, client_obj_desc, b, depth, perc_descr)
 # %% Building the Vocabulary Tree using b = 4 and depth = 3 using PCA
 b = 4
 depth = 3
 n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
-
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
 # %% Building the Vocabulary Tree using b=4 and depth=5 using PCA
 b = 4
 depth = 5
 n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
 # %% Building the Vocabulary Tree using b=5 and depth=7 using PCA
 b = 5
 depth = 7
 n_components = [0.8]
-tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components, random_state=RANDOM_STATE)
+tree_recall(server_obj_desc, client_obj_desc, b, depth, n_components=n_components)
 # %%
