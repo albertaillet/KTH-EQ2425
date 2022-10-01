@@ -13,7 +13,7 @@ from typing import Union, List, Dict, Optional
 DATA_FOLDER = 'data2'
 OUT_FOLDER = 'output2'
 
-#%% Functions
+# %% Functions
 
 def load_images(img_folder: str, max_n: int = 50) -> tuple:
     '''Loads all the images from img folder and stores them into 3 separate lists (server, client and new_client)'''
@@ -185,7 +185,6 @@ class HI:
     def recall_rate(
         self, 
         obj_desc_list: Union[List[List[ndarray]], Dict[int, List[ndarray]]],
-        topKbest: int = 1,
         perc_desc: float = 1.0,
         sim: str = 'l1',
     ) -> float:
@@ -197,8 +196,10 @@ class HI:
         :param sim: the similarity function to use
         :return: recall rate
         '''
+        n_objects = len(obj_desc_list)
+        top_k_recall = np.zeros(len(obj_desc_list)) # shape (n_objects, )
+
         iterator = enumerate(obj_desc_list) if isinstance(obj_desc_list, list) else obj_desc_list.items()
-        recall_t = 0
         for object_index, object_descs in iterator:
             perc_index = int(perc_desc * len(object_descs))
             tf = self.get_query_tf_vector(object_descs[:perc_index])
@@ -215,12 +216,14 @@ class HI:
             else:
                 raise ValueError('Invalid similarity function')
             
-            preds = np.argsort(scores)[:topKbest].tolist()
+            preds = np.argsort(scores).tolist()
 
-            if object_index in preds:
-                recall_t += 1
+            preds_object_index = preds.index(object_index)
+            for i in range(n_objects):
+                if preds_object_index <= i:
+                    top_k_recall[i] += 1
         
-        return recall_t / len(obj_desc_list)
+        return top_k_recall / n_objects
 
     @staticmethod
     def l_n(x: ndarray, y: ndarray, n: int) -> ndarray:
@@ -294,11 +297,13 @@ def tree_recall(
         for perc in perc_descr:
             for sim in sims:
                 # Querying and recall score
-                top_1_recall = HI_ob.recall_rate(client_obj_desc, topKbest=1, perc_desc=perc, sim=sim)
-                top_5_recall = HI_ob.recall_rate(client_obj_desc, topKbest=5, perc_desc=perc, sim=sim)
-
+                top_k_recall = HI_ob.recall_rate(client_obj_desc, perc_desc=perc, sim=sim)
+                
+                top_1_recall = top_k_recall[0]
                 print(f'Top-1 recall rate: {top_1_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
-                print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
+                if len(top_k_recall) >= 5:
+                    top_5_recall = top_k_recall[4]
+                    print(f'Top-5 recall rate: {top_5_recall} using b = {b} and depth = {depth}, {len(client_obj_desc)} images, {HI_ob.counter} visual words, {perc * 100}% of desc per query, number of components = {n_comp}, similarity = {sim}')
 
 
 # %% Data loading and feature extraction
