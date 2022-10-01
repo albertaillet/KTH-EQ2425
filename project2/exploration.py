@@ -305,7 +305,7 @@ def evaluate_performance(
 
             print(
                 f'Top-1 recall rate: {top_1_recall}, '
-                f'Top-5 recall rate: {top_1_recall}, '
+                f'Top-5 recall rate: {top_5_recall}, '
                 f'using b = {b} and depth = {depth}, '
                 f'{len(client_obj_desc)} images, '
                 f'{HI_ob.counter} visual words, '
