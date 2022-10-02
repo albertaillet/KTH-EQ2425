@@ -7,7 +7,7 @@ FOLDER = 'output2'
 df = pd.read_json(f'{FOLDER}/results.json')
 df = df.drop(columns=['top_k_recall'])
 # %%
-df_depth = df[(df['b'] == 4) & (df['n_components'] == 1)].sort_values('depth')
+df_depth = df[(df['b'] == 4) & (df['n_components'] == 1) & (df['similarity'] == 'l1') & (df['perc'] == 1)].sort_values('depth')
 depths = df_depth['depth']
 top_1_recall = df_depth['top_1_recall']
 top_5_recall = df_depth['top_5_recall']
@@ -23,7 +23,7 @@ plt.grid()
 plt.savefig(f'{FOLDER}/depth_vs_recall.png')
 
 # %%
-df_b = df[(df['depth'] == 5) & (df['n_components'] == 1)].sort_values('b')
+df_b = df[(df['depth'] == 5) & (df['n_components'] == 1) & (df['similarity'] == 'l1') & (df['perc'] == 1)].sort_values('b')
 bs = df_b['b']
 top_1_recall = df_b['top_1_recall']
 top_5_recall = df_b['top_5_recall']
@@ -43,7 +43,9 @@ df_3d = (df[
     (df['n_components'] == 1) & 
     (df['perc']==1) & 
     (df['b'] >= 3) & 
-    (df['depth'] >= 4)]
+    (df['depth'] >= 4) & 
+    (df['similarity'] == 'l1') & 
+    (df['perc'] == 1)]
     .drop_duplicates()
     .sort_values(['b', 'depth'])
 )
@@ -107,4 +109,44 @@ plt.xticks(bs[:, 0])
 plt.grid()
 plt.savefig(f'{FOLDER}/b_vs_top5recall.png')
 
+# %% Print table
+print(
+    (df
+        [(df['b'] >= 3) & (df['depth'] >= 3)]
+        .sort_values(['b', 'depth'])
+        .rename(
+            columns={
+                'top_1_recall': 'Top-1',
+                'top_5_recall': 'Top-5',
+                'n_components': 'PCA',
+                'perc': 'percentage',
+                'similarity': 'similarity',
+            }
+        )
+        .to_latex(
+            formatters={
+                'Top-1': lambda x: f'{x:.2f}',
+                'Top-5': lambda x: f'{x:.2f}',
+                'PCA': lambda x: f'{x*100:.0f}%',
+                'percentage': lambda x: f'{x*100:.0f}%',
+                'similarity': lambda x: x.capitalize(),
+            },
+            column_format='|c|c|c|c|c|c|c|',
+            index=False, 
+            columns=[
+                'b', 
+                'depth', 
+                'similarity', 
+                'PCA',
+                'percentage', 
+                'Top-1',
+                'Top-5'
+            ]
+        )
+    )
+    .replace("\\\n", "\\ \hline\n")
+    .replace(r"\toprule", "\hline")
+    .replace(r"\midrule", "\hline")
+    .replace(r"\bottomrule", "\hline")
+)
 # %%

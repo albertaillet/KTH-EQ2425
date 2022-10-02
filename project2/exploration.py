@@ -197,8 +197,8 @@ class HI:
         :param sim: the similarity function to use
         :return: recall rate
         '''
-        n_objects = len(obj_desc_list)
-        top_k_recall = np.zeros(len(obj_desc_list)) # shape (n_objects, )
+        n_objects = self.weights.shape[1]
+        top_k_recall = np.zeros(n_objects) # shape (n_objects, )
 
         iterator = enumerate(obj_desc_list) if isinstance(obj_desc_list, list) else obj_desc_list.items()
         for object_index, object_descs in iterator:
@@ -224,7 +224,7 @@ class HI:
                 if preds_object_index <= i:
                     top_k_recall[i] += 1
         
-        return top_k_recall / n_objects
+        return top_k_recall / len(obj_desc_list)
 
     @staticmethod
     def l_n(x: ndarray, y: ndarray, n: int) -> ndarray:
@@ -395,6 +395,11 @@ confiurations = [
 
     # will less query descriptors
     {'b': 5, 'depth': 7, 'perc_descr': [0.9, 0.7, 0.5]},
+
+    # using l2 similarity
+    {'b': 4, 'depth': 3, 'similarities': ['l2']},
+    {'b': 4, 'depth': 5, 'similarities': ['l2']},
+    {'b': 5, 'depth': 7, 'similarities': ['l2']},
 
     # using PCA
     {'b': 4, 'depth': 3, 'n_components': 0.8},
