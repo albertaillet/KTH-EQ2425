@@ -119,7 +119,7 @@ class HI:
         self.counter = 0
         self.tree = self.hi_kmeans(reduced_data, self.b, 1)
 
-    def hi_kmeans(self, data: ndarray, b: int, depth: int)  -> dict:
+    def hi_kmeans(self, data: ndarray, b: int, depth: int) -> List[Node]:
         '''
         Builds a hierarchical tree using the given keypoints using K means clustering with b centers.
         :return: hierarchical tree as a dictionary
