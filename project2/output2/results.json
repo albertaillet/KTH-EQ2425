@@ -72,6 +72,45 @@
         "random_seed": 1
     },
     {
+        "b": 5,
+        "depth": 7,
+        "perc": 0.9,
+        "n_components": 1.0,
+        "similarity": "l1",
+        "top_1_recall": 0.78,
+        "top_5_recall": 0.88,
+        "top_k_recall": [],
+        "n_vis_words": 15585,
+        "n_images": 50,
+        "random_seed": 1
+    },
+    {
+        "b": 5,
+        "depth": 7,
+        "perc": 0.7,
+        "n_components": 1.0,
+        "similarity": "l1",
+        "top_1_recall": 0.72,
+        "top_5_recall": 0.86,
+        "top_k_recall": [],
+        "n_vis_words": 15585,
+        "n_images": 50,
+        "random_seed": 1
+    },
+    {
+        "b": 5,
+        "depth": 7,
+        "perc": 0.5,
+        "n_components": 1.0,
+        "similarity": "l1",
+        "top_1_recall": 0.68,
+        "top_5_recall": 0.88,
+        "top_k_recall": [],
+        "n_vis_words": 15585,
+        "n_images": 50,
+        "random_seed": 1
+    },
+    {
         "b": 4,
         "depth": 3,
         "perc": 1,

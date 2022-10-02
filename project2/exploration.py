@@ -393,6 +393,9 @@ confiurations = [
     {'b': 4, 'depth': 5},
     {'b': 5, 'depth': 7},
 
+    # will less query descriptors
+    {'b': 5, 'depth': 7, 'perc_descr': [0.9, 0.7, 0.5]},
+
     # using PCA
     {'b': 4, 'depth': 3, 'n_components': 0.8},
     {'b': 4, 'depth': 5, 'n_components': 0.8},
