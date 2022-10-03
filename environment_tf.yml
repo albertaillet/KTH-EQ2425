@@ -1,0 +1,9 @@
+name: tf-env # for project 3
+channels:
+  - conda-forge
+dependencies:
+  - python==3.10.4
+  - ipykernel
+  - tensorflow
+  - keras
+  - wandb
