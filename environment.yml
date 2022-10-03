@@ -1,4 +1,4 @@
-name: eq2425-env
+name: eq2425-env # for project 1 and 2
 channels:
   - conda-forge
 dependencies:
