@@ -7,3 +7,6 @@ dependencies:
   - tensorflow
   - keras
   - wandb
+  - pandas
+  - numpy
+  - matplotlib
