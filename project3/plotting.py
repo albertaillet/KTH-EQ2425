@@ -110,6 +110,7 @@ print(df
             'val_accuracy',
         ]
     ]
+    .sort_values(by=['val_accuracy'], ascending=False)
     .rename(
         columns={
             'accuracy': 'recall',
@@ -128,8 +129,8 @@ print(df
         index=False, 
         formatters={
             'batch': lambda x: f'{x:.0f}',
-            'recall': lambda x: f'{x:.2f}',
-            'val recall': lambda x: f'{x:.2f}',
+            'recall': lambda x: f'{x:.3f}',
+            'val recall': lambda x: f'{x:.3f}',
             'filter sizes': lambda ks: ', '.join(f'{kx}×{ky}' for kx,ky in ks),
             'activation': lambda a: a.replace('_', ' ').replace('relu', 'ReLU').replace('leaky', 'Leaky'),
         }
