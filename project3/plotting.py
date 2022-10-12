@@ -34,7 +34,7 @@ import wandb
 api = wandb.Api()
 
 # Project is specified by <entity/project-name>
-runs = api.runs("eq2425_2022p3_aillet_bonato/project3")
+runs = api.runs('eq2425_2022p3_aillet_bonato/project3')
 
 summary_list, config_list, name_list = [], [], []
 for run in runs: 
@@ -51,49 +51,14 @@ for run in runs:
     # .name is the human-readable name of the run.
     name_list.append(run.name)
 
-runs_df = pd.DataFrame({
-    "summary": summary_list,
-    "config": config_list,
-    "name": name_list
-    })
-
-runs_df.to_csv("project.csv")
+df = pd.concat([
+    pd.DataFrame(config_list),
+    pd.DataFrame(summary_list),
+    pd.DataFrame(name_list, columns=['name'])
+], axis=1)
 
 # %%
-confid_df = pd.DataFrame(config_list)
-summary_df = pd.DataFrame(summary_list)
-df = pd.concat([confid_df, summary_df], axis=1)
 print(df
-    .drop(
-        columns=[
-            'conv_strides', 
-            'seed', 
-            'epochs',
-            'monitor', 
-            'patience', 
-            'model_name', 
-            'input_shape', 
-            'num_classes', 
-            'dropout_rate', 
-            'pool_strides',
-            'conv_activate', 
-            'output_activation', 
-            'pool_kernel_sizes',
-            'loss', 
-            '_wandb', 
-            '_runtime', 
-            'val_loss', 
-            'best_val_loss', 
-            '_step', 
-            'epoch', 
-            'graph', 
-            '_timestamp', 
-            'best_epoch', 
-            'GFLOPs'
-        ]
-    )
-    [::-1]
-    .dropna()
     [
         [
             'conv_filters',
@@ -110,6 +75,7 @@ print(df
             'val_accuracy',
         ]
     ]
+    .dropna()
     .sort_values(by=['val_accuracy'], ascending=False)
     .rename(
         columns={
@@ -135,10 +101,10 @@ print(df
             'activation': lambda a: a.replace('_', ' ').replace('relu', 'ReLU').replace('leaky', 'Leaky'),
         }
     )
-    .replace("\\\n", "\\ \hline\n")
-    .replace(r"\toprule", "\hline")
-    .replace(r"\midrule", "\hline")
-    .replace(r"\bottomrule", "")
+    .replace('\\\n', '\\ \hline\n')
+    .replace(r'\toprule', '\hline')
+    .replace(r'\midrule', '\hline')
+    .replace(r'\bottomrule\n', '')
 )
 
 # %%
