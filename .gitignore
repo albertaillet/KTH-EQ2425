@@ -2,3 +2,4 @@
 */playground*/*
 /project2/output2/*.pkl
 augmented.py
+*wandb*
