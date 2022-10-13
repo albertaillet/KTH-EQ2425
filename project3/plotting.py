@@ -58,6 +58,38 @@ df = pd.concat([
 ], axis=1)
 
 # %%
+sweep4AB = [
+    'ethereal-sweep-8',
+    'avid-sweep-7',
+    'unique-sweep-6',
+    'pious-sweep-5',
+    'gallant-sweep-4',
+    'proud-sweep-3',
+    'devoted-sweep-2',
+    'morning-sweep-1',
+]
+sweep4CDE = [
+    'eager-sweep-8',
+    'robust-sweep-7',
+    'tough-sweep-6',
+    'solar-sweep-5',
+    'generous-sweep-4',
+    'crimson-sweep-3',
+    'divine-sweep-2',
+    'dauntless-sweep-1',
+]
+sweep5ABC = [
+    'winter-sweep-8',
+    'wandering-sweep-7',
+    'frosty-sweep-6',
+    'generous-sweep-5',
+    'graceful-sweep-4',
+    'expert-sweep-3',
+    'gallant-sweep-2',
+    'sweet-sweep-1',
+]
+
+# %%
 print(df
     [
         [
@@ -74,6 +106,9 @@ print(df
             'accuracy',
             'val_accuracy',
         ]
+    ]
+    [
+        df['name'].isin(sweep5ABC)
     ]
     .dropna()
     .sort_values(by=['val_accuracy'], ascending=False)
@@ -104,7 +139,7 @@ print(df
     .replace('\\\n', '\\ \hline\n')
     .replace(r'\toprule', '\hline')
     .replace(r'\midrule', '\hline')
-    .replace(r'\bottomrule\n', '')
+    .replace(r'\bottomrule', '')
 )
 
 # %%
