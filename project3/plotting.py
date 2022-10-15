@@ -11,9 +11,7 @@ def leaky_relu(x, alpha=0.3):
     return np.maximum(alpha * x, x)
 
 # %%
-def plot_activation(activation, ax, title, color):
-    l = 5
-    y_offset = 2
+def plot_activation(activation, ax, title, color, l = 5, y_offset = 2):
     x = np.linspace(-5, 5, 100)
     ax.plot(x, activation(x), color=color)
     ax.set_title(title)
@@ -58,7 +56,7 @@ df = pd.concat([
 ], axis=1)
 
 # %%
-sweep4AB = [
+sweep4AB = set([
     'ethereal-sweep-8',
     'avid-sweep-7',
     'unique-sweep-6',
@@ -67,8 +65,8 @@ sweep4AB = [
     'proud-sweep-3',
     'devoted-sweep-2',
     'morning-sweep-1',
-]
-sweep4CDE = [
+])
+sweep4CDE = set([
     'eager-sweep-8',
     'robust-sweep-7',
     'tough-sweep-6',
@@ -77,20 +75,24 @@ sweep4CDE = [
     'crimson-sweep-3',
     'divine-sweep-2',
     'dauntless-sweep-1',
-]
-sweep5ABC = [
-    'winter-sweep-8',
-    'wandering-sweep-7',
-    'frosty-sweep-6',
-    'generous-sweep-5',
-    'graceful-sweep-4',
-    'expert-sweep-3',
-    'gallant-sweep-2',
-    'sweet-sweep-1',
-]
+])
+sweep5ABC = set([
+    'pleasant-sweep-8',
+    'morning-sweep-7',
+    'different-sweep-6',
+    'rosy-sweep-5',
+    'royal-sweep-4',
+    'misunderstood-sweep-3',
+    'earnest-sweep-2',
+    'ethereal-sweep-1',
+])
 
 # %%
+df['val recall'] = df['best_val_accuracy'].fillna(df['val_accuracy'])
 print(df
+    [
+        df['name'].isin(sweep5ABC)
+    ]
     [
         [
             'conv_filters',
@@ -104,18 +106,14 @@ print(df
             'data_shuffling',
             'optimizer',
             'accuracy',
-            'val_accuracy',
+            'val recall',
         ]
     ]
-    [
-        df['name'].isin(sweep5ABC)
-    ]
     .dropna()
-    .sort_values(by=['val_accuracy'], ascending=False)
+    .sort_values(by=['val recall'], ascending=False)
     .rename(
         columns={
             'accuracy': 'recall',
-            'val_accuracy': 'val recall',
             'optimizer': 'optim',
             'learning_rate': 'lr',
             'data_shuffling': 'shuffle',
