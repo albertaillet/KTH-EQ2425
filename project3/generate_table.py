@@ -3,7 +3,7 @@ import pandas as pd
 import wandb
 api = wandb.Api()
 
-# Project is specified by <entity/project-name>
+# %% Project is specified by <entity/project-name>
 runs = api.runs('eq2425_2022p3_aillet_bonato/project3')
 
 summary_list, config_list, name_list = [], [], []
@@ -58,12 +58,23 @@ sweep5ABC = set([
     'earnest-sweep-2',
     'ethereal-sweep-1',
 ])
+sweep_aug_lr_decay = set([
+    'worthy-sweep-4',
+    'royal-sweep-3',
+    'summer-sweep-2',
+    'dark-sweep-1',
+])
+sweep_optimizers = set([
+    'light-sweep-3',
+    'serene-sweep-2',
+    'glad-sweep-1',
+])
 
 # %%
 df['val recall'] = df['best_val_accuracy'].fillna(df['val_accuracy'])
 print(df
     [
-        df['name'].isin(sweep5ABC)
+        df['name'].isin(sweep_optimizers)
     ]
     [
         [
@@ -104,6 +115,50 @@ print(df
             'val recall': lambda x: f'{x:.3f}',
             'filter sizes': lambda ks: ', '.join(f'{kx}×{ky}' for kx,ky in ks),
             'activation': lambda a: a.replace('_', ' ').replace('relu', 'ReLU').replace('leaky', 'Leaky'),
+        }
+    )
+    .replace('\\\n', '\\ \hline\n')
+    .replace(r'\toprule', '\hline')
+    .replace(r'\midrule', '\hline')
+    .replace(r'\bottomrule', '')
+)
+# %%
+df['val recall'] = df['best_val_accuracy'].fillna(df['val_accuracy'])
+print(df
+    [
+        df['name'].isin(sweep_aug_lr_decay)
+    ]
+    [
+        [
+            'exponential_decay',
+            'augmentation',
+            'exp_dec_init_lr',
+            'decay_rate',
+            'decay_steps',
+            'accuracy',
+            'val recall',
+        ]
+    ]
+    .dropna()
+    .sort_values(by=['val recall'], ascending=False)
+    .rename(
+        columns={
+            'accuracy': 'recall',
+            'exponential_decay': 'exp dec',
+            'augmentation': 'aug',
+            'exp_dec_init_lr': 'init lr',
+            'decay_rate': 'decay rate',
+            'decay_steps': 'decay steps',
+        }
+    )
+    .to_latex(
+        index=False, 
+        formatters={
+            'batch': lambda x: f'{x:.0f}',
+            'recall': lambda x: f'{x:.3f}',
+            'val recall': lambda x: f'{x:.3f}',
+            'decay rate': lambda x: f'{x:.1f}',
+            'decay steps': lambda x: f'{x:.0f}',
         }
     )
     .replace('\\\n', '\\ \hline\n')
